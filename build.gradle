@@ -1,0 +1,127 @@
+plugins {
+    id 'net.minecraftforge.gradle' version '[6.0,6.2)'
+    id 'org.spongepowered.mixin' version '0.7.+'
+    id 'eclipse'
+    id 'maven-publish'
+}
+
+version = '1.0.0'
+group = 'org.cnpccombat'
+archivesBaseName = 'cnpccombat'
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(17)
+    }
+}
+
+minecraft {
+    mappings channel: 'official', version: '1.20.1'
+
+    runs {
+        client {
+            workingDirectory project.file('run')
+            property 'forge.logging.markers', 'REGISTRIES'
+            property 'forge.logging.console.level', 'debug'
+            property 'mixin.debug.export', 'true'
+            property 'mixin.env.remapRefMap', 'true'
+            property 'mixin.env.refMapRemappingFile', "${projectDir}/build/createSrgToMcp/output.srg"
+            mods {
+                cnpccombat {
+                    source sourceSets.main
+                }
+            }
+        }
+
+        server {
+            workingDirectory project.file('run')
+            property 'forge.logging.markers', 'REGISTRIES'
+            property 'forge.logging.console.level', 'debug'
+            mods {
+                cnpccombat {
+                    source sourceSets.main
+                }
+            }
+        }
+
+        data {
+            workingDirectory project.file('run')
+            property 'forge.logging.markers', 'REGISTRIES'
+            property 'forge.logging.console.level', 'debug'
+            args '--mod', 'cnpccombat', '--all', '--output', file('src/generated/resources/')
+            mods {
+                cnpccombat {
+                    source sourceSets.main
+                }
+            }
+        }
+    }
+}
+
+sourceSets.main.resources { srcDir 'src/generated/resources' }
+
+repositories {
+    mavenCentral()
+    flatDir { dirs 'libs' }
+}
+
+dependencies {
+    minecraft 'net.minecraftforge:forge:1.20.1-47.4.6'
+    // CNPC 本体 + BetterCombat + playerAnimator + cloth-config（逐个 deobf）
+    implementation fg.deobf(files('libs/CustomNPCs-1.20.1-GBPort-Unofficial-1.20.1.20260711.jar'))
+    implementation fg.deobf(files('libs/bettercombat-forge-1.9.0+1.20.1.jar'))
+    implementation fg.deobf(files('libs/player-animation-lib-forge-1.0.2-rc1+1.20.jar'))
+    implementation fg.deobf(files('libs/cloth-config-11.1.136-forge.jar'))
+    annotationProcessor 'org.spongepowered:mixin:0.8.5:processor'
+}
+
+mixin {
+    add sourceSets.main, 'cnpccombat.refmap.json'
+    config 'mixins.cnpccombat.json'
+}
+
+// MixinGradle 无法自动映射非 Minecraft 类（CNPC）的注入点；
+// Forge 1.20.1 运行时为 SRG 命名，手动把 CNPC 类方法映射补进生成的 refmap。
+def generatedRefmap = file("$buildDir/tmp/compileJava/cnpccombat.refmap.json")
+def npcClassMappings = [
+        'org/cnpccombat/mixin/NpcCombatMixin'                         : [
+                'tick'         : 'Lnoppes/npcs/entity/EntityNPCInterface;m_8119_()V',
+                'doHurtTarget' : 'Lnoppes/npcs/entity/EntityNPCInterface;m_7327_(Lnet/minecraft/world/entity/Entity;)Z'
+        ],
+        'org/cnpccombat/mixin/client/ClientNpcAnimationMixin'         : [
+                'tick'         : 'Lnoppes/npcs/entity/EntityNPCInterface;m_8119_()V'
+        ],
+        'org/cnpccombat/mixin/EntityAIAttackTargetMixin'              : [
+                'tick'         : 'Lnoppes/npcs/ai/EntityAIAttackTarget;m_8037_()V'
+        ]
+]
+def fixNpcRefmap = tasks.register('fixNpcRefmap') {
+    dependsOn tasks.named('compileJava')
+    doLast {
+        if (!generatedRefmap.exists()) {
+            return
+        }
+        def json = new groovy.json.JsonSlurper().parse(generatedRefmap)
+        def merge = { Map target ->
+            npcClassMappings.each { cls, methods ->
+                def classMappings = target[cls]
+                if (classMappings == null) {
+                    classMappings = [:]
+                    target[cls] = classMappings
+                }
+                methods.each { k, v -> classMappings[k] = v }
+            }
+        }
+        merge(json.mappings)
+        if (json.data != null && json.data.searge != null) {
+            merge(json.data.searge)
+        }
+        generatedRefmap.text = new groovy.json.JsonBuilder(json).toPrettyString()
+    }
+}
+tasks.matching { it.name == 'addMixinsToJar' }.configureEach { dependsOn fixNpcRefmap }
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+    options.compilerArgs << '-Xlint:-processing'
+}

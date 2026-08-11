@@ -1,0 +1,53 @@
+modLoader="javafml"
+loaderVersion="[47,)"
+license="MIT"
+
+[[mods]]
+modId="cnpccombat"
+version="1.0.0"
+displayName="CNPC BetterCombat"
+displayURL="https://space.bilibili.com/353609880"
+authors="Bin"
+description='''Makes CustomNPCs entities use Better Combat attack and weapon pose animations like players.'''
+
+# 基础依赖
+[[dependencies.cnpccombat]]
+    modId="forge"
+    mandatory=true
+    versionRange="[47,)"
+    ordering="NONE"
+    side="BOTH"
+
+[[dependencies.cnpccombat]]
+    modId="minecraft"
+    mandatory=true
+    versionRange="[1.20.1,1.21)"
+    ordering="NONE"
+    side="BOTH"
+
+# BetterCombat 前置
+[[dependencies.cnpccombat]]
+    modId="bettercombat"
+    mandatory=true
+    versionRange="[1,2)"
+    ordering="AFTER"
+    side="BOTH"
+
+# playerAnimator 前置
+[[dependencies.cnpccombat]]
+    modId="playeranimator"
+    mandatory=true
+    versionRange="[1,2)"
+    ordering="AFTER"
+    side="BOTH"
+
+# CustomNPCs 依赖
+[[dependencies.cnpccombat]]
+    modId="customnpcs"
+    mandatory=true
+    versionRange="[1,)"
+    ordering="AFTER"
+    side="BOTH"
+
+[[mixins]]
+    config="mixins.cnpccombat.json"
