@@ -8,6 +8,8 @@ import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.ProjectileWeaponItem;
 import net.minecraft.world.item.ShieldItem;
+import noppes.npcs.entity.EntityNPCInterface;
+import org.cnpccombat.api.NpcAnimGroupData;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.Arrays;
@@ -16,17 +18,55 @@ public final class NpcAttackSelector {
     private NpcAttackSelector() {
     }
 
+    /**
+     * 取该实体生效的近战属性：
+     * 若是 CNPC 且在 AI 面板里设置了攻击动画组，优先用动画组；否则用手中武器自身的。
+     *
+     * <p>这样"手里拿的是镐但想让它挥剑"、"空手也能有斧攻击动作"都能实现。
+     */
+    @Nullable
+    public static WeaponAttributes attributesFor(LivingEntity entity, ItemStack stack) {
+        WeaponAttributes override = overrideAttributes(entity);
+        if (override != null) {
+            return override;
+        }
+        return WeaponRegistry.getAttributes(stack);
+    }
+
+    /** 该 NPC 设置的动画组属性；没设置 / 组无效 / 不是 CNPC 时返回 null。 */
+    @Nullable
+    public static WeaponAttributes overrideAttributes(LivingEntity entity) {
+        if (!(entity instanceof EntityNPCInterface npc)) {
+            return null;
+        }
+        if (!(npc.ais instanceof NpcAnimGroupData data)) {
+            return null;
+        }
+        return AnimationGroupRegistry.get(data.cnpc$getAttackAnimGroup());
+    }
+
+    /** 是否设置了有效的动画组覆盖。 */
+    public static boolean hasOverride(LivingEntity entity) {
+        return overrideAttributes(entity) != null;
+    }
+
     public static boolean hasCombatWeapon(LivingEntity entity) {
         ItemStack stack = entity.getMainHandItem();
         if (stack.getItem() instanceof ProjectileWeaponItem) {
             return false;
         }
-        return hasAttacks(WeaponRegistry.getAttributes(stack));
+        // 设置了动画组时，即使空手或拿着非武器也算"能打"。
+        return hasAttacks(attributesFor(entity, stack));
     }
 
     public static boolean isDualWielding(LivingEntity entity) {
         if (entity.getMainHandItem().getItem() instanceof ProjectileWeaponItem
                 || entity.getOffhandItem().getItem() instanceof ProjectileWeaponItem) {
+            return false;
+        }
+        // 动画组覆盖是"整个实体一套动作"，双持判定失去意义（两手会拿到同一套属性），
+        // 所以覆盖生效时直接按单手处理，避免左右手动作互相打断。
+        if (hasOverride(entity)) {
             return false;
         }
         WeaponAttributes main = WeaponRegistry.getAttributes(entity.getMainHandItem());
@@ -35,7 +75,7 @@ public final class NpcAttackSelector {
     }
 
     public static boolean isTwoHandedWielding(LivingEntity entity) {
-        WeaponAttributes main = WeaponRegistry.getAttributes(entity.getMainHandItem());
+        WeaponAttributes main = attributesFor(entity, entity.getMainHandItem());
         return hasAttacks(main) && main.isTwoHanded();
     }
 
@@ -47,7 +87,7 @@ public final class NpcAttackSelector {
         if (stack.getItem() instanceof ProjectileWeaponItem) {
             return null;
         }
-        WeaponAttributes attributes = WeaponRegistry.getAttributes(stack);
+        WeaponAttributes attributes = attributesFor(entity, stack);
         if (!hasAttacks(attributes)) {
             return null;
         }

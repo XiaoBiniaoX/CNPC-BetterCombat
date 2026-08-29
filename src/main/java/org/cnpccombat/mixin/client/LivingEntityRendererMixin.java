@@ -8,6 +8,7 @@ import net.minecraft.world.entity.LivingEntity;
 import noppes.npcs.entity.EntityNPCInterface;
 import org.cnpccombat.anim.NpcAnimator;
 import org.cnpccombat.api.NpcAnimationAccess;
+import org.cnpccombat.api.NpcYsmState;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
@@ -36,6 +37,19 @@ public abstract class LivingEntityRendererMixin<T extends LivingEntity, M extend
         }
     }
 
+    /**
+     * 把 BetterCombat 动画的"整体位移/旋转"部分施加到 PoseStack。
+     *
+     * <p>BC 的动画分两部分：骨骼旋转给各个 {@code ModelPart}，
+     * 而整体的 body 位移/旋转必须走 PoseStack（因为 humanoid 模型没有根骨骼）。
+     *
+     * <p><b>启用了 YSM 模型的 NPC 必须跳过</b>：YSM 模型自带根骨骼，
+     * PoseStack 上的变换会作用于**整个模型**，表现为"攻击时整个上半身在摆动"。
+     * YSM 侧的攻击动作由它自己的 {@code swing} 槽位负责，不需要我们插手。
+     *
+     * <p>这里用 {@link NpcYsmState} 判定（只读 DataDisplay 上的字符串，
+     * 不引用任何 YSM 类型），所以未装 YSM 时这个 mixin 照常工作。
+     */
     @Inject(
             method = "setupRotations(Lnet/minecraft/world/entity/LivingEntity;Lcom/mojang/blaze3d/vertex/PoseStack;FFF)V",
             at = @At("RETURN")
@@ -44,7 +58,9 @@ public abstract class LivingEntityRendererMixin<T extends LivingEntity, M extend
             T entity, PoseStack poseStack, float ageInTicks, float bodyYaw,
             float partialTick, CallbackInfo ci
     ) {
-        if (entity instanceof EntityNPCInterface && !entity.isBaby()) {
+        if (entity instanceof EntityNPCInterface
+                && !entity.isBaby()
+                && !NpcYsmState.hasYsmModel(entity)) {
             NpcAnimator.applyBodyTransform(NpcAnimator.getAnimation(entity), poseStack, partialTick);
         }
     }

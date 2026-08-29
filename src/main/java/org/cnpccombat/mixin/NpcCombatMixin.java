@@ -10,6 +10,7 @@ import net.minecraft.world.level.Level;
 import noppes.npcs.entity.EntityNPCInterface;
 import org.cnpccombat.api.NpcCombatState;
 import org.cnpccombat.logic.NpcCombatLogic;
+import org.cnpccombat.logic.NpcRangedFlow;
 import org.jetbrains.annotations.Nullable;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Unique;
@@ -36,6 +37,8 @@ public abstract class NpcCombatMixin extends LivingEntity implements NpcCombatSt
     private void cnpc$tickCombat(CallbackInfo ci) {
         if (!this.level().isClientSide) {
             this.cnpc$tickCombatAttack();
+            // 非战斗时把弩预先上好弹，避免第一次交战白等一轮上弹。
+            NpcRangedFlow.tickKeepLoaded((EntityNPCInterface) (Object) this);
         }
     }
 

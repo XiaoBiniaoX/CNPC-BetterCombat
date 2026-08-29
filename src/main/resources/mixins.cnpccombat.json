@@ -8,13 +8,20 @@
     "NpcCombatMixin",
     "NpcSwingMixin",
     "MobRangeMixin",
-    "EntityAIAttackTargetMixin"
+    "EntityAIAttackTargetMixin",
+    "EntityAIRangedAttackMixin",
+    "DataAIMixin",
+    "DataDisplayYsmMixin"
   ],
   "client": [
     "client.ClientNpcAnimationMixin",
     "client.HumanoidModelMixin",
     "client.PlayerModelMixinNpc",
-    "client.LivingEntityRendererMixin"
+    "client.LivingEntityRendererMixin",
+    "client.RenderCustomNpcMixin",
+    "client.GuiNpcAIMixin",
+    "client.GuiCreationEntitiesYsmMixin",
+    "client.RenderNPCInterfaceYsmMixin"
   ],
   "injectors": {
     "defaultRequire": 1

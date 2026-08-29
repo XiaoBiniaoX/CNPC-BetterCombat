@@ -12,8 +12,17 @@ import dev.kosmx.playerAnim.impl.animation.AnimationApplier;
 import dev.kosmx.playerAnim.impl.animation.IBendHelper;
 import net.minecraft.client.model.geom.ModelPart;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraftforge.api.distmarker.Dist;
+import net.minecraftforge.api.distmarker.OnlyIn;
 import org.jetbrains.annotations.Nullable;
 
+/**
+ * <b>客户端专用</b>：引用 {@code PoseStack}（blaze3d）、{@code ModelPart}
+ * 以及 playerAnimator 的客户端渲染 API，这些在服务端都不存在。
+ *
+ * <p>调用方全部在客户端路径（{@code mixin/client/*} 与 {@code compat/ysm/*}）。
+ */
+@OnlyIn(Dist.CLIENT)
 public final class NpcAnimator {
     private NpcAnimator() {
     }

@@ -4,7 +4,7 @@ license="MIT"
 
 [[mods]]
 modId="cnpccombat"
-version="1.0.0"
+version="1.1.0"
 displayName="CNPC BetterCombat"
 displayURL="https://space.bilibili.com/353609880"
 authors="Bin"
@@ -48,6 +48,18 @@ description='''Makes CustomNPCs entities use Better Combat attack and weapon pos
     versionRange="[1,)"
     ordering="AFTER"
     side="BOTH"
+
+# YSM（是，史蒂夫模型）——**可选**依赖。
+# mandatory=false：没装也能正常启动，YSM 相关按钮不显示、渲染回退到 CNPC 原生。
+# ordering="AFTER"：保证 YSM 先加载完，我们的 isLoaded 探测才有意义。
+# side="CLIENT"：模型渲染纯客户端行为，服务端不需要 YSM
+#（模型名走 CNPC 原生 DataDisplay 同步，服务端只存字符串，不碰 YSM 类）。
+[[dependencies.cnpccombat]]
+    modId="yes_steve_model"
+    mandatory=false
+    versionRange="[2,)"
+    ordering="AFTER"
+    side="CLIENT"
 
 [[mixins]]
     config="mixins.cnpccombat.json"

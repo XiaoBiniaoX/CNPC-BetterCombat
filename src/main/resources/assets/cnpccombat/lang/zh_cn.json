@@ -1,0 +1,11 @@
+{
+  "modmenu.nameTranslation.cnpccombat": "CNPC BetterCombat",
+  "cnpccombat.gui.attackAnimGroup": "攻击动画组",
+  "cnpccombat.gui.groupNone": "未设置（使用手中武器）",
+  "cnpccombat.gui.clearGroup": "取消设置",
+  "cnpccombat.gui.ysmModel": "YSM 模型",
+  "cnpccombat.gui.ysmNone": "未设置",
+  "cnpccombat.gui.selectYsmModel": "选择 YSM 模型",
+  "cnpccombat.gui.clearYsm": "取消设置",
+  "cnpccombat.guihint.attackAnimGroup": "强制指定近战使用的 BetterCombat 攻击动画组，忽略 NPC 手中拿的是什么。不设置则使用手中武器自身的动画组。"
+}

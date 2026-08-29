@@ -176,6 +176,27 @@ public abstract class ClientNpcAnimationMixin extends LivingEntity implements Np
         return this.cnpc$isAttackAnimationActive() || this.cnpc$weaponBodyPoseActive;
     }
 
+    /**
+     * 当前 BC 攻击动画名，供 YSM 的 {@code ctrl.bcombat_attack_animation} 使用。
+     *
+     * <p>取法<b>完全照抄</b> YSM 的 {@code BetterCombatBinding.getAttackAnimationName}：
+     * 从动画数据的 {@code extraData["name"]} 取，并且要求动画处于 active 状态。
+     * 这样 NPC 返回的名字格式与玩家侧一致，模型作者的脚本无需区分。
+     */
+    @Override
+    @Nullable
+    public String cnpc$getCurrentAttackAnimation() {
+        IAnimation current = this.cnpc$attackAnimation.base.getAnimation();
+        if (!(current instanceof dev.kosmx.playerAnim.api.layered.KeyframeAnimationPlayer player)) {
+            return null;
+        }
+        if (!player.isActive()) {
+            return null;
+        }
+        Object name = player.getData().extraData.getOrDefault("name", "");
+        return name instanceof String s && !s.isEmpty() ? s : null;
+    }
+
     @Override
     public void cnpc$playAttackAnimation(
             String animationId,
@@ -334,8 +355,10 @@ public abstract class ClientNpcAnimationMixin extends LivingEntity implements Np
             animation = AnimationRegistry.animations.get(id.toString());
         }
         if (animation == null) {
+            // ERROR 级：动画找不到意味着该武器的攻击动画完全播不出来（功能损坏）。
+            // 已用 CNPC$MISSING 去重，每个 id 只报一次，不会刷屏。
             if (CNPC$MISSING.add(id)) {
-                CnpcCombat.LOGGER.warn("Missing Better Combat animation '{}'", id);
+                CnpcCombat.LOGGER.error("Missing Better Combat animation '{}'", id);
             }
             return null;
         }

@@ -1,3 +1,11 @@
 {
-  "modmenu.nameTranslation.cnpccombat": "CNPC BetterCombat"
+  "modmenu.nameTranslation.cnpccombat": "CNPC BetterCombat",
+  "cnpccombat.gui.attackAnimGroup": "Attack Animations",
+  "cnpccombat.gui.groupNone": "Not set (use held weapon)",
+  "cnpccombat.gui.clearGroup": "Clear",
+  "cnpccombat.gui.ysmModel": "YSM Model",
+  "cnpccombat.gui.ysmNone": "Not set",
+  "cnpccombat.gui.selectYsmModel": "Select YSM Model",
+  "cnpccombat.gui.clearYsm": "Clear",
+  "cnpccombat.guihint.attackAnimGroup": "Force a Better Combat attack animation group for melee, ignoring what the NPC holds. Leave unset to use the held weapon's own animations."
 }

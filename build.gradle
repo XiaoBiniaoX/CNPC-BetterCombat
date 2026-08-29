@@ -5,9 +5,12 @@ plugins {
     id 'maven-publish'
 }
 
-version = '1.0.0'
+version = '1.1.0'
 group = 'org.cnpccombat'
-archivesBaseName = 'cnpccombat'
+// 产物名固定为 CNPC-BetterCombat-V1.1.0-1.20.1Forge.jar（用户指定）。
+// archivesBaseName 只决定前缀，版本后缀由 jar.archiveVersion 控制；
+// 这里把版本并入 baseName 并清空 version 后缀，避免出现 "...-1.1.0.jar" 的重复版本号。
+archivesBaseName = "CNPC-BetterCombat-V${version}-1.20.1Forge"
 
 java {
     toolchain {
@@ -60,6 +63,12 @@ minecraft {
 
 sourceSets.main.resources { srcDir 'src/generated/resources' }
 
+// 版本号已经在 archivesBaseName 里，再带一次 version 会得到
+// "CNPC-BetterCombat-V1.1.0-1.20.1Forge-1.1.0.jar"。清空版本后缀。
+tasks.named('jar') {
+    archiveVersion.set('')
+}
+
 repositories {
     mavenCentral()
     flatDir { dirs 'libs' }
@@ -72,6 +81,16 @@ dependencies {
     implementation fg.deobf(files('libs/bettercombat-forge-1.9.0+1.20.1.jar'))
     implementation fg.deobf(files('libs/player-animation-lib-forge-1.0.2-rc1+1.20.jar'))
     implementation fg.deobf(files('libs/cloth-config-11.1.136-forge.jar'))
+    // YSM 是**可选**依赖，所以用 compileOnly：只提供编译期类型，不进产物、
+    // 不产生运行时硬依赖。YSM 2.6.5 的类名虽然被混淆成 O0o... 这种形式，
+    // 但它们是合法 Java 标识符且 jar 里保留了完整泛型 Signature，
+    // 所以可以直接 extends 它的渲染器/animatable 基类，享受编译期类型检查
+    // （比反射可靠得多）。
+    //
+    // 运行时安全靠"类加载是懒的"这一点保证：所有触碰 YSM 类型的代码都隔离在
+    // org.cnpccombat.compat.ysm.** 里，入口一律先过 YsmCompat.isLoaded()。
+    // 不进方法体就不会解析 YSM 类型，未装 YSM 时不会 NoClassDefFoundError。
+    compileOnly fg.deobf(files('libs/ysm-2.6.5-forge+mc1.20.1-release.jar'))
     annotationProcessor 'org.spongepowered:mixin:0.8.5:processor'
 }
 
@@ -93,13 +112,61 @@ def npcClassMappings = [
         ],
         'org/cnpccombat/mixin/EntityAIAttackTargetMixin'              : [
                 'tick'         : 'Lnoppes/npcs/ai/EntityAIAttackTarget;m_8037_()V'
-        ]
+        ],
+        // EntityAIRangedAttack.tick/stop 是 Goal 的 override -> SRG；
+        // performRangedAttack 是 RangedAttackMob 的 override -> SRG。
+        'org/cnpccombat/mixin/EntityAIRangedAttackMixin'               : [
+                'tick': 'Lnoppes/npcs/ai/EntityAIRangedAttack;m_8037_()V',
+                'stop': 'Lnoppes/npcs/ai/EntityAIRangedAttack;m_8041_()V',
+                'Lnoppes/npcs/entity/EntityNPCInterface;performRangedAttack(Lnet/minecraft/world/entity/LivingEntity;F)V': 'Lnoppes/npcs/entity/EntityNPCInterface;m_6504_(Lnet/minecraft/world/entity/LivingEntity;F)V'
+        ],
+        // GuiNpcAI.init 是 Screen.init 的 override -> SRG m_7856_。
+        // buttonEvent 是 CNPC 自有名（mixin 里已 remap=false），不必映射。
+        'org/cnpccombat/mixin/client/GuiNpcAIMixin'                    : [
+                'init'         : 'Lnoppes/npcs/client/gui/mainmenu/GuiNpcAI;m_7856_()V'
+        ],
+        // GuiCreationEntities.init 同样是 Screen.init 的 override -> SRG m_7856_。
+        'org/cnpccombat/mixin/client/GuiCreationEntitiesYsmMixin'      : [
+                'init'         : 'Lnoppes/npcs/client/gui/model/GuiCreationEntities;m_7856_()V'
+        ],
+        // 注意：RenderNPCInterfaceYsmMixin 的 `render` **不要**加映射！
+        // 这是一个反直觉的例外，2026-08-27 因为加了映射导致游戏崩溃，详见 findings.md。
+        //
+        // RenderNPCInterface<T extends EntityNPCInterface, M> 里的
+        //   `public void render(T, float, float, PoseStack, MultiBufferSource, int)`
+        // **不是** vanilla override —— 它的第一个参数是 T（擦除后 EntityNPCInterface），
+        // 与 vanilla `render(LivingEntity,...)` 签名不同。编译器为它另外生成了
+        // 两个桥接方法 `m_7392_(LivingEntity,...)` / `m_7392_(Entity,...)`，
+        // 桥接体只有 checkcast + 转调 `render`。
+        //
+        // 所以运行时这个方法**仍然叫 `render`**（CNPC 自有名，不参与 SRG 重命名）。
+        // 一旦把它映射到 m_7392_，Mixin 就会去扫桥接方法 —— 那里面没有
+        // `super.render(...)` 调用，于是 "Scanned 1 target(s), (0/1) succeeded"，
+        // 注入失败 -> mod 在 CONSTRUCT 阶段崩 -> Forge 跳过所有注册事件
+        // -> 注册表缺 forge:swim_speed、语言文件没加载（按钮变 fml.menu.mods）-> 进世界崩。
+        //
+        // 判别法（比"是不是 override"更准）：拿**运行时（未 deobf）jar** javap，
+        // 看方法名是否还在。还在 -> 不要映射；只剩 SRG 名 -> 必须映射。
 ]
+// compileJava 命中 Gradle 构建缓存时（日志显示 "FROM-CACHE"），
+// annotation processor 不会重新运行，refmap 也就不会生成 —— 但 clean 已经把它删了。
+// 结果是打出一个**没有 refmap 的 jar**：mixins.json 里声明了 refmap 文件名，
+// 运行时却找不到，所有 CNPC 类（SRG 命名）的注入点全部失配 → 启动崩溃。
+// 增量构建不会踩（refmap 还在），只有 `clean build` 会，所以极易漏掉。
+// 关掉 compileJava 的缓存，代价是每次全量编译多几秒，换来构建结果可靠。
+compileJava {
+    outputs.cacheIf { false }
+}
+
 def fixNpcRefmap = tasks.register('fixNpcRefmap') {
     dependsOn tasks.named('compileJava')
     doLast {
+        // 不要静默 return：refmap 缺失意味着产物是坏的，必须让构建失败。
         if (!generatedRefmap.exists()) {
-            return
+            throw new GradleException("未生成 refmap: ${generatedRefmap}。" +
+                    "通常是 compileJava 命中了构建缓存导致 annotation processor 未运行；" +
+                    "请用 `gradlew clean build --rerun-tasks` 重试。" +
+                    "缺少 refmap 的 jar 会在启动时因 mixin 注入点失配而崩溃。")
         }
         def json = new groovy.json.JsonSlurper().parse(generatedRefmap)
         def merge = { Map target ->
@@ -121,7 +188,53 @@ def fixNpcRefmap = tasks.register('fixNpcRefmap') {
 }
 tasks.matching { it.name == 'addMixinsToJar' }.configureEach { dependsOn fixNpcRefmap }
 
+// mixin 配置里的 UTF-8 BOM 在任何默认字符集不是 UTF-8 的机器上都是致命的
+// （中文 Windows 是 GBK，西文是 windows-1252）：Mixin 用不带字符集的
+// InputStreamReader 读配置，BOM 会被解成一个真实字符，于是 JSON 的第一个 token
+// 变成 STRING 而不是 '{'。游戏会在启动时死于
+// "Expected BEGIN_OBJECT but was STRING at line 1 column 1 path $" ——
+// 这发生在任何 mod 加载之前，所以崩溃报告谁也怪不到。
+//
+// 编辑器和 PowerShell 的 -Encoding UTF8 会反复把 BOM 加回来，
+// 所以在 processResources 阶段剥掉，而不是指望文件在 git 里一直干净。
+processResources {
+    // 关键：filter{} 默认用**平台字符集**（中文 Windows 是 GBK）读写文件，
+    // 会把 UTF-8 的中文全部毁成 '??'（实测语言文件里的中文变成乱码）。
+    // 必须显式声明 filteringCharset = 'UTF-8'。
+    filteringCharset = 'UTF-8'
+    filesMatching(['**/*.json', '**/*.toml', '**/*.mcmeta']) {
+        filter { line -> line.startsWith('\uFEFF') ? line.substring(1) : line }
+    }
+}
+
+// 宁可让构建失败，也不要发出一个只在别人机器上崩的 jar。
+def assertNoBom = tasks.register('assertNoBom') {
+    dependsOn processResources
+    doLast {
+        def offenders = []
+        fileTree(sourceSets.main.output.resourcesDir)
+                .matching { include '**/*.json', '**/*.toml', '**/*.mcmeta' }
+                .each { f ->
+                    def head = new byte[3]
+                    f.withInputStream { it.read(head, 0, 3) }
+                    if (head[0] == (byte) 0xEF && head[1] == (byte) 0xBB && head[2] == (byte) 0xBF) {
+                        offenders << f.name
+                    }
+                }
+        if (offenders) {
+            throw new GradleException("打包资源里发现 UTF-8 BOM: ${offenders}。" +
+                    "mixin 配置带 BOM 会在默认字符集非 UTF-8 的机器上崩游戏。")
+        }
+        logger.lifecycle("assertNoBom: 打包的 json/toml/mcmeta 资源均无 BOM")
+    }
+}
+
+classes.dependsOn assertNoBom
+
 tasks.withType(JavaCompile).configureEach {
     options.encoding = 'UTF-8'
     options.compilerArgs << '-Xlint:-processing'
+    // 注意：不要加 -AMSG_MIXIN_SOFT_TARGET_NOT_FOUND=warning。
+    // 那是给「字符串目标 mixin」（曾用于 YSM 兼容）准备的，现已移除；
+    // 保留它会把真实的 mixin 目标错误从 error 降级为 warning，掩盖问题。
 }

@@ -31,6 +31,7 @@ public final class NpcCombatLogic {
         if (mob.level().isClientSide || !mob.isAlive()) {
             return false;
         }
+        // 手持弓/弩时走远程流程（NpcRangedFlow），近战动画不介入。
         if (mob.getMainHandItem().getItem() instanceof ProjectileWeaponItem) {
             return false;
         }
