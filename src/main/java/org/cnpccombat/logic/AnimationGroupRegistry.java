@@ -52,6 +52,30 @@ public final class AnimationGroupRegistry {
     /** 可供 GUI 选择的组 id 列表（已排序）。双端都有：服务端扫出来，客户端由网络包填。 */
     private static volatile List<String> AVAILABLE = Collections.emptyList();
 
+    /**
+     * 组 id -> 该组的持握姿态动画名（{@code pose}）。<b>双端都有。</b>
+     *
+     * <p>为什么单独存这一份而不是让客户端也持有 {@link #RESOLVED}：
+     * 客户端渲染持握姿态<b>只需要 pose 动画名这一个字符串</b>，
+     * 不需要 hitbox/damage/attacks 那些服务端才用的东西。
+     * 只同步一个字符串，包体小、也不必让 {@code WeaponAttributes} 过网络。
+     *
+     * <p><b>这是"持握动作重进世界就失效"的修复关键</b>（详见 findings.md 第15轮）：
+     * 客户端的 {@code cnpc$updateWeaponPoses()} 走
+     * {@code NpcAttackSelector.attributesFor()} -> {@code AnimationGroupRegistry.get()}
+     * -> 读 {@link #RESOLVED}，而 RESOLVED <b>在客户端永远是空的</b>
+     * （{@code acceptFromServer} 只填 AVAILABLE）-> 动画组的 pose 取不到。
+     */
+    private static volatile Map<String, String> POSES = Collections.emptyMap();
+
+    /**
+     * 组 id -> 是否双手武器。<b>双端都有</b>，与 {@link #POSES} 一起同步。
+     *
+     * <p>只包含带 pose 的组（没有 pose 就用不到这个标志）。
+     * 客户端判"要不要禁用副手姿态"需要它，而 {@code RESOLVED} 在客户端是空的。
+     */
+    private static volatile Set<String> TWO_HANDED = Collections.emptySet();
+
     private AnimationGroupRegistry() {
     }
 
@@ -103,6 +127,22 @@ public final class AnimationGroupRegistry {
         List<String> ids = new ArrayList<>(resolved.keySet());
         Collections.sort(ids);
         AVAILABLE = Collections.unmodifiableList(ids);
+
+        // 顺手把每个组的持握姿态动画名 + 双手标志抽出来，供 S2C 同步给客户端渲染用。
+        Map<String, String> poses = new LinkedHashMap<>();
+        Set<String> twoHanded = new java.util.LinkedHashSet<>();
+        for (String id : ids) {
+            WeaponAttributes attributes = resolved.get(id);
+            String pose = attributes == null ? null : attributes.pose();
+            if (pose != null && !pose.isBlank()) {
+                poses.put(id, pose);
+                if (attributes.isTwoHanded()) {
+                    twoHanded.add(id);
+                }
+            }
+        }
+        POSES = Collections.unmodifiableMap(poses);
+        TWO_HANDED = Collections.unmodifiableSet(twoHanded);
 
         // 加载结果不打日志（用户要求只保留 ERROR 级）。
     }
@@ -204,6 +244,25 @@ public final class AnimationGroupRegistry {
         return AVAILABLE;
     }
 
+    /**
+     * 该动画组的持握姿态动画名，没有则返回 null。<b>双端可用</b>
+     * （服务端来自扫描，客户端来自 S2C 同步）。
+     *
+     * <p>客户端渲染持握姿态只需要这个字符串，所以不依赖 {@link #RESOLVED}。
+     */
+    @Nullable
+    public static String poseOf(@Nullable String groupId) {
+        if (groupId == null || groupId.isBlank()) {
+            return null;
+        }
+        return POSES.get(groupId);
+    }
+
+    /** 该动画组是否双手武器。<b>双端可用</b>，只对带 pose 的组有意义。 */
+    public static boolean isTwoHanded(@Nullable String groupId) {
+        return groupId != null && TWO_HANDED.contains(groupId);
+    }
+
     // ---------------------------------------------------------------- 客户端同步
 
     /** 服务端：要发给客户端的组 id 列表。 */
@@ -211,15 +270,29 @@ public final class AnimationGroupRegistry {
         return new ArrayList<>(AVAILABLE);
     }
 
+    /** 服务端：要发给客户端的「组 id -> 持握姿态动画名」表。 */
+    public static Map<String, String> exportPoses() {
+        return new LinkedHashMap<>(POSES);
+    }
+
+    /** 服务端：要发给客户端的「哪些带 pose 的组是双手武器」。 */
+    public static Set<String> exportTwoHanded() {
+        return new java.util.LinkedHashSet<>(TWO_HANDED);
+    }
+
     /**
-     * 客户端：接收服务端发来的组 id 列表。
-     * 只填 AVAILABLE（GUI 用），不填 RESOLVED（客户端不需要解析结果，
-     * 动画播放走的是服务端下发的 animation id）。
+     * 客户端：接收服务端发来的组 id 列表 + 持握姿态表。
+     *
+     * <p>不填 {@link #RESOLVED}：客户端不需要解析结果（攻击动画走服务端
+     * 下发的具体 animation id）。但**必须**填 {@link #POSES} ——
+     * 持握姿态是客户端自己每 tick 算的，拿不到 pose 名就画不出来。
      */
-    public static void acceptFromServer(List<String> ids) {
+    public static void acceptFromServer(List<String> ids, Map<String, String> poses, Set<String> twoHanded) {
         List<String> copy = new ArrayList<>(ids);
         Collections.sort(copy);
         AVAILABLE = Collections.unmodifiableList(copy);
+        POSES = Collections.unmodifiableMap(new LinkedHashMap<>(poses));
+        TWO_HANDED = Collections.unmodifiableSet(new java.util.LinkedHashSet<>(twoHanded));
     }
 
     /** 单机/局域网主机：客户端与服务端在同一 JVM，列表已经是现成的，不必清空。 */

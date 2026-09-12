@@ -17,6 +17,7 @@ import net.bettercombat.client.animation.AnimationRegistry;
 import net.bettercombat.client.animation.AttackAnimationSubStack;
 import net.bettercombat.client.animation.CustomAnimationPlayer;
 import net.bettercombat.client.animation.PoseSubStack;
+import net.bettercombat.client.animation.StateCollectionHelper;
 import net.bettercombat.client.animation.modifier.TransmissionSpeedModifier;
 import net.bettercombat.logic.WeaponRegistry;
 import net.minecraft.resources.ResourceLocation;
@@ -63,8 +64,36 @@ public abstract class ClientNpcAnimationMixin extends LivingEntity implements Np
     private final AttackAnimationSubStack cnpc$attackAnimation =
             new AttackAnimationSubStack(new AdjustmentModifier(this::cnpc$attackAdjustment));
 
+    /**
+     * 渲染侧唯一的取值入口（{@code playerAnimator_getAnimation()}）。
+     *
+     * <p><b>★ 必须包住整个 {@link #cnpc$stack}，不能只包攻击层</b>
+     * —— 这是"持握武器动作完全不生效"的根因（第14轮修）。
+     *
+     * <p>原先这里写的是 {@code new AnimationApplier(this.cnpc$attackAnimation.base)},
+     * 只包了 2000 号那一层（攻击动画）。而持握姿态在 1~4 号层里
+     * （{@code offHandItemPose}/{@code offHandBodyPose}/
+     * {@code mainHandItemPose}/{@code mainHandBodyPose}）。
+     *
+     * <p>整条渲染链（{@code HumanoidModelMixin}、{@code PlayerModelMixinNpc}、
+     * {@code LivingEntityRendererMixin}）都只经 {@code NpcAnimator.getAnimation()}
+     * 读这一个 applier → 那 4 层<b>从来没有被采样过</b>，
+     * 于是 {@code cnpc$updateWeaponPoses()} 每 tick 算出来的 pose 全部被丢弃。
+     *
+     * <p>对照 playerAnimator 的玩家实现（{@code PlayerEntityMixin.java:30-32}）：
+     * <pre>
+     *   private final AnimationStack   animationStack   = createAnimationStack();
+     *   private final AnimationApplier animationApplier = new AnimationApplier(animationStack);
+     * </pre>
+     * 它包的就是**整个 stack**。BC 也正是靠这点，把 pose 层加进
+     * {@code ((IAnimatedPlayer)this).getAnimationStack()} 就能生效。
+     *
+     * <p>{@code AnimationStack.get3DTransform} 会按优先级从低到高逐层叠加
+     * （只取 {@code isActive()} 的层），所以攻击动画（2000）仍然压在
+     * 持握姿态（1~4）之上，优先级语义不变。
+     */
     @Unique
-    private final AnimationApplier cnpc$applier = new AnimationApplier(this.cnpc$attackAnimation.base);
+    private final AnimationApplier cnpc$applier = new AnimationApplier(this.cnpc$stack);
 
     @Unique
     private final PoseSubStack cnpc$mainHandItemPose = new PoseSubStack(null, false, true);
@@ -90,6 +119,17 @@ public abstract class ClientNpcAnimationMixin extends LivingEntity implements Np
     @Unique
     private boolean cnpc$weaponBodyPoseActive;
 
+    /**
+     * 攻击动画俯仰补偿的输入上限（度）。
+     *
+     * <p>与 {@code NpcCombatLogic} 里 {@code setLookAt(target, 30.0F, 30.0F)}
+     * 的俯仰限幅取同一个值 —— 那是 NPC 正常追击时 xRot 的实际范围。
+     * 超出这个范围（被其它 mod 改朝向、骑乘、脚本强制设 pitch）时夹住，
+     * 避免异常输入被 0.75 的系数放大成夸张动作。
+     */
+    @Unique
+    private static final float CNPC$MAX_PITCH_DEGREES = 30.0F;
+
     protected ClientNpcAnimationMixin(EntityType<? extends net.minecraft.world.entity.PathfinderMob> type, Level level) {
         super(type, level);
     }
@@ -102,6 +142,30 @@ public abstract class ClientNpcAnimationMixin extends LivingEntity implements Np
             this.cnpc$stack.addAnimLayer(3, this.cnpc$mainHandItemPose.base);
             this.cnpc$stack.addAnimLayer(4, this.cnpc$mainHandBodyPose.base);
             this.cnpc$stack.addAnimLayer(2000, this.cnpc$attackAnimation.base);
+
+            // 持握姿态的 body 通道要按当前姿态裁剪（游泳/骑乘时腿不该被 pose 摆）。
+            // BC 玩家侧也是只给这两个 body 通道挂 configure，
+            // 见 AbstractClientPlayerEntityMixin:64-65。configure 是 public 字段。
+            this.cnpc$mainHandBodyPose.configure = this::cnpc$configurePoseByActivity;
+            this.cnpc$offHandBodyPose.configure = this::cnpc$configurePoseByActivity;
+        }
+    }
+
+    /**
+     * 按 NPC 当前姿态裁剪持握姿态动画的通道。
+     *
+     * <p>复刻 BC 玩家侧的 {@code updateAnimationByCurrentActivity}
+     * （{@code AbstractClientPlayerEntityMixin:249-275}）：
+     * 游泳或骑乘时把**腿部通道关掉**，否则持握姿态会去摆腿 ——
+     * 骑马的 NPC 两条腿会脱离马鞍、游泳时腿会僵直。
+     *
+     * <p>只处理这两种姿态，与 BC 一致（它的 switch 其余分支都是空的）。
+     */
+    @Unique
+    private void cnpc$configurePoseByActivity(KeyframeAnimation.AnimationBuilder animation) {
+        if (this.isPassenger() || this.getPose() == net.minecraft.world.entity.Pose.SWIMMING) {
+            StateCollectionHelper.configure(animation.rightLeg, false, false);
+            StateCollectionHelper.configure(animation.leftLeg, false, false);
         }
     }
 
@@ -297,13 +361,28 @@ public abstract class ClientNpcAnimationMixin extends LivingEntity implements Np
             return;
         }
 
-        WeaponAttributes mainAttributes = WeaponRegistry.getAttributes(mainHand);
-        boolean twoHanded = mainAttributes != null && mainAttributes.isTwoHanded();
+        // ★★ 这里**不能**用 NpcAttackSelector.attributesFor()。
+        //
+        // 本方法跑在**客户端**，而 attributesFor 内部要查
+        // AnimationGroupRegistry.RESOLVED —— 那张表**只在服务端填充**
+        // （acceptFromServer 从不填它）。于是设了动画组的 NPC 在客户端
+        // 恒取不到属性，持握姿态画不出来。
+        //
+        // 这正是"持握动作不连续、重进世界就失效"的根因之一：
+        // 刚用 GUI 保存过时客户端 DataAI 里有残留值、看着是好的；
+        // 重进世界实体重新 spawn，残留消失 -> 姿态再也不出现。
+        //
+        // poseFor / isTwoHandedPose 走的是随 S2C 同步的 POSES 表
+        // + DataDisplay 上的动画组镜像，**双端都有数据**。
+        boolean twoHanded = NpcAttackSelector.isTwoHandedPose(this, mainHand);
         boolean dual = NpcAttackSelector.isDualWielding(this);
 
-        KeyframeAnimation mainPose = this.cnpc$getPose(mainAttributes == null ? null : mainAttributes.pose());
+        KeyframeAnimation mainPose = this.cnpc$getPose(NpcAttackSelector.poseFor(this, mainHand));
         KeyframeAnimation offPose = null;
         if (!twoHanded && dual) {
+            // 副手仍按手中物品取：动画组覆盖是"整个实体一套动作"，
+            // 覆盖生效时 isDualWielding 已经返回 false（见 NpcAttackSelector:69），
+            // 所以走到这里必然没有覆盖，用 WeaponRegistry 是对的。
             WeaponAttributes offAttributes = WeaponRegistry.getAttributes(offHand);
             offPose = this.cnpc$getPose(offAttributes == null ? null : offAttributes.offHandPose());
         }
@@ -365,11 +444,43 @@ public abstract class ClientNpcAnimationMixin extends LivingEntity implements Np
         return animation;
     }
 
+    /**
+     * 攻击动画的俯仰补偿。<b>部位名必须与 BetterCombat 玩家侧逐字一致</b>。
+     *
+     * <p><b>★ 这里曾经是 "用力过猛 / NPC 头扎进地里" 的根因</b>，
+     * 修复过程记在 findings.md「第14轮·二·勘误」，要点：
+     *
+     * <p>playerAnimator 把躯干分成**两个不同的部位**：
+     * <ul>
+     *   <li>{@code "body"} —— 整体位移/旋转，由 <b>PoseStack</b> 施加；
+     *       实测 BC 的 30 个攻击动画<b>没有一个</b>驱动这个通道
+     *       → 对攻击动画来说这一支是<b>空操作</b>；</li>
+     *   <li>{@code "torso"} —— vanilla 的 {@code body} <b>ModelPart</b>，
+     *       由 {@code updatePart("torso", model.body)} 施加；
+     *       22 个攻击动画都在驱动它。</li>
+     * </ul>
+     *
+     * <p>BC 玩家侧补的是 {@code "body"}（因此实际不生效，torso 只有动画本身的值）。
+     * 我们最初凭"语义相同"把它写成了 {@code "torso"} —— 于是补偿真的生效，
+     * 叠加到动画自带的前倾上：
+     * <pre>
+     *   two_handed_slam_heavy 动画自带 torso.pitch = -1.73 rad (-99deg)
+     * + NPC 俯视目标时 xRot=30deg 的补偿      = -0.39 rad
+     * = -2.12 rad (-121deg)  -> 躯干前倾超过 90 度，头随躯干转进地面
+     * </pre>
+     * 玩家不会这样：他那份补偿落在空操作的 {@code body} 上。
+     *
+     * <p>所以这里<b>改回 {@code "body"}</b>，与 BC 对齐；torso 只由动画驱动。
+     */
     @Unique
     private Optional<AdjustmentModifier.PartModifier> cnpc$attackAdjustment(String partName) {
-        float pitch = (float) Math.toRadians(this.getXRot());
+        // NPC 的俯仰由 CNPC 的 LookControl 驱动（NpcCombatLogic 用 setLookAt(target,30,30)），
+        // 量级与玩家鼠标操作不同，先夹到 +-30 度再用，避免异常俯仰放大成夸张动作。
+        float degrees = Mth.clamp(this.getXRot(), -CNPC$MAX_PITCH_DEGREES, CNPC$MAX_PITCH_DEGREES);
+        float pitch = (float) Math.toRadians(degrees);
         return switch (partName) {
-            case "torso" -> Optional.of(new AdjustmentModifier.PartModifier(
+            // ★ 是 "body" 不是 "torso" —— 与 BetterCombat 玩家侧逐字一致。
+            case "body" -> Optional.of(new AdjustmentModifier.PartModifier(
                     new Vec3f(-pitch * 0.75F, 0.0F, 0.0F), Vec3f.ZERO));
             case "rightArm", "leftArm" -> Optional.of(new AdjustmentModifier.PartModifier(
                     new Vec3f(pitch * 0.25F, 0.0F, 0.0F), Vec3f.ZERO));

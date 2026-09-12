@@ -77,7 +77,7 @@ public final class CnpcNetwork {
     public static void sendAnimGroups(ServerPlayer player) {
         CHANNEL.send(
                 PacketDistributor.PLAYER.with(() -> player),
-                new AnimGroupListPayload(AnimationGroupRegistry.exportIds())
+                newAnimGroupPayload()
         );
     }
 
@@ -85,7 +85,19 @@ public final class CnpcNetwork {
     public static void broadcastAnimGroups() {
         CHANNEL.send(
                 PacketDistributor.ALL.noArg(),
-                new AnimGroupListPayload(AnimationGroupRegistry.exportIds())
+                newAnimGroupPayload()
+        );
+    }
+
+    /**
+     * 组装动画组同步包：id 列表（GUI 用）+ pose 表（客户端渲染持握姿态用）。
+     * 两个发送点共用，避免以后加字段时漏改一处。
+     */
+    private static AnimGroupListPayload newAnimGroupPayload() {
+        return new AnimGroupListPayload(
+                AnimationGroupRegistry.exportIds(),
+                AnimationGroupRegistry.exportPoses(),
+                AnimationGroupRegistry.exportTwoHanded()
         );
     }
 }
