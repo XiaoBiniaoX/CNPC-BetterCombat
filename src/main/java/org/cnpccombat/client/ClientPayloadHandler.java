@@ -5,6 +5,8 @@ import net.minecraft.world.entity.Entity;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.api.distmarker.OnlyIn;
 import org.cnpccombat.api.NpcAnimationAccess;
+import org.cnpccombat.logic.AnimationGroupRegistry;
+import org.cnpccombat.network.AnimGroupListPayload;
 import org.cnpccombat.network.NpcAttackPayload;
 
 @OnlyIn(Dist.CLIENT)
@@ -28,5 +30,13 @@ public final class ClientPayloadHandler {
                     payload.damageUpswing()
             );
         }
+    }
+
+    /**
+     * 收到服务端下发的攻击动画组列表 + 持握姿态表。
+     * 单机时客户端与服务端同 JVM，注册表已经填好了；这里再赋一次也无害（内容相同）。
+     */
+    public static void handleAnimGroups(AnimGroupListPayload payload) {
+        AnimationGroupRegistry.acceptFromServer(payload.groupIds(), payload.poses(), payload.twoHanded());
     }
 }
