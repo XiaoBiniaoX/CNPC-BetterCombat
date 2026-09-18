@@ -345,6 +345,10 @@ public abstract class ClientNpcAnimationMixin extends LivingEntity implements Np
     private void cnpc$updateWeaponPoses() {
         Mob mob = (Mob) (Object) this;
         boolean leftHanded = this.cnpc$isLeftHanded();
+        if (((EntityNPCInterface) (Object) this).job.getType() == 9) {
+            this.cnpc$clearWeaponPoses(leftHanded);
+            return;
+        }
         ItemStack mainHand = this.getMainHandItem();
         ItemStack offHand = this.getOffhandItem();
 

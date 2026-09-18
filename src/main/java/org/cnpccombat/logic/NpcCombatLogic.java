@@ -8,9 +8,6 @@ import net.minecraft.sounds.SoundEvent;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Mob;
-import net.minecraft.world.entity.ai.attributes.AttributeInstance;
-import net.minecraft.world.entity.ai.attributes.AttributeModifier;
-import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.ProjectileWeaponItem;
 import org.cnpccombat.CnpcCombat;
@@ -18,10 +15,7 @@ import org.cnpccombat.api.NpcCombatState;
 import org.cnpccombat.network.CnpcNetwork;
 import org.jetbrains.annotations.Nullable;
 
-import java.util.UUID;
-
 public final class NpcCombatLogic {
-    private static final UUID DAMAGE_MODIFIER_ID = UUID.fromString("9f0c0a6b-4c1e-4a7a-9b2d-3f6d5e4c1a2b");
     private static final int COMBO_RESET_TICKS = 40;
 
     private NpcCombatLogic() {
@@ -67,8 +61,7 @@ public final class NpcCombatLogic {
             return false;
         }
         if (!(intendedTarget instanceof LivingEntity livingTarget)
-                || !validTarget(mob, livingTarget)
-                || !isWithinRange(mob, livingTarget, hand)) {
+                || !validTarget(mob, livingTarget)) {
             return true;
         }
 
@@ -133,7 +126,7 @@ public final class NpcCombatLogic {
 
     private static boolean isWithinRange(Mob mob, LivingEntity target, AttackHand hand) {
         double range = NpcCombatMath.attackRange(mob, hand);
-        return mob.distanceTo(target) <= range + target.getBbWidth() * 0.5D;
+        return mob.distanceTo(target) <= range;
     }
 
     private static void cancelPending(NpcCombatState state) {
@@ -180,27 +173,11 @@ public final class NpcCombatLogic {
 
     private static boolean invokeVanillaAttack(Mob mob, LivingEntity target, AttackHand hand) {
         NpcCombatState state = (NpcCombatState) mob;
-        AttributeInstance damage = mob.getAttribute(Attributes.ATTACK_DAMAGE);
-        double multiplier = Math.max(0.0D, hand.attack().damageMultiplier());
-        if (damage != null) {
-            damage.removeModifier(DAMAGE_MODIFIER_ID);
-            if (multiplier != 1.0D) {
-                damage.addTransientModifier(new AttributeModifier(
-                        DAMAGE_MODIFIER_ID,
-                        "npccombat damage multiplier",
-                        multiplier - 1.0D,
-                        AttributeModifier.Operation.ADDITION
-                ));
-            }
-        }
         try {
             state.cnpc$setCallingVanillaAttack(true);
             return mob.doHurtTarget(target);
         } finally {
             state.cnpc$setCallingVanillaAttack(false);
-            if (damage != null) {
-                damage.removeModifier(DAMAGE_MODIFIER_ID);
-            }
         }
     }
 
