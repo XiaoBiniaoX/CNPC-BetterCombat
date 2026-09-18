@@ -6,7 +6,6 @@
   "mixins": [
     "NpcCombatMixin",
     "NpcSwingMixin",
-    "MobRangeMixin",
     "EntityAIAttackTargetMixin",
     "DataAIMixin",
     "DataDisplayMixin"

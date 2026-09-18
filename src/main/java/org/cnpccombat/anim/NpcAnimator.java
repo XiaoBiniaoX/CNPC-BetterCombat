@@ -12,6 +12,8 @@ import dev.kosmx.playerAnim.impl.animation.AnimationApplier;
 import dev.kosmx.playerAnim.impl.animation.IBendHelper;
 import net.minecraft.client.model.geom.ModelPart;
 import net.minecraft.world.entity.LivingEntity;
+import noppes.npcs.entity.EntityNPCInterface;
+import noppes.npcs.roles.JobPuppet;
 import org.jetbrains.annotations.Nullable;
 
 public final class NpcAnimator {
@@ -20,6 +22,9 @@ public final class NpcAnimator {
 
     @Nullable
     public static AnimationApplier getAnimation(LivingEntity entity) {
+        if (entity instanceof EntityNPCInterface npc && npc.job instanceof JobPuppet) {
+            return null;
+        }
         return entity instanceof IAnimatedPlayer animated ? animated.playerAnimator_getAnimation() : null;
     }
 

@@ -64,8 +64,7 @@ public final class NpcCombatLogic {
             return false;
         }
         if (!(intendedTarget instanceof LivingEntity livingTarget)
-                || !validTarget(mob, livingTarget)
-                || !isWithinRange(mob, livingTarget, hand)) {
+                || !validTarget(mob, livingTarget)) {
             return true;
         }
 
