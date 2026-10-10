@@ -25,7 +25,7 @@ public abstract class PlayerModelMixinNpc<T extends LivingEntity> extends Humano
             float netHeadYaw, float headPitch, CallbackInfo ci
     ) {
         if (!(entity instanceof AbstractClientPlayer) && entity instanceof EntityNPCInterface) {
-            NpcAnimator.applyToModel(this, NpcAnimator.getAnimation(entity));
+            NpcAnimator.applyToModel(this, NpcAnimator.getAnimation(NpcAnimator.resolveRenderTarget(entity)));
         }
     }
 }

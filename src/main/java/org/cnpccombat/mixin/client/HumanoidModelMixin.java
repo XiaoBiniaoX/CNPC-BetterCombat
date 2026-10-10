@@ -73,7 +73,7 @@ public abstract class HumanoidModelMixin<T extends LivingEntity> extends Ageable
             float netHeadYaw, float headPitch, CallbackInfo ci
     ) {
         if (!((Object) this instanceof PlayerModel<?>)) {
-            NpcAnimator.applyToModel(this, NpcAnimator.getAnimation(entity));
+            NpcAnimator.applyToModel(this, NpcAnimator.getAnimation(NpcAnimator.resolveRenderTarget(entity)));
         }
     }
 

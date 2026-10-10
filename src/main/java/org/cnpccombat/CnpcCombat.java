@@ -8,8 +8,10 @@ import net.minecraftforge.event.OnDatapackSyncEvent;
 import net.minecraftforge.event.server.ServerStartedEvent;
 import net.minecraftforge.eventbus.api.IEventBus;
 import net.minecraftforge.fml.common.Mod;
+import net.minecraftforge.fml.config.ModConfig;
 import net.minecraftforge.fml.event.lifecycle.FMLCommonSetupEvent;
 import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
+import org.cnpccombat.config.CnpcCombatConfig;
 import org.cnpccombat.logic.AnimationGroupRegistry;
 import org.cnpccombat.network.CnpcNetwork;
 import org.slf4j.Logger;
@@ -23,6 +25,11 @@ public final class CnpcCombat {
         // Forge 1.20.1: @Mod 主类必须提供无参构造，通过 FMLJavaModLoadingContext 获取 mod 事件总线。
         IEventBus modBus = FMLJavaModLoadingContext.get().getModEventBus();
         modBus.addListener(CnpcCombat::onCommonSetup);
+
+        net.minecraftforge.fml.ModLoadingContext.get().registerConfig(ModConfig.Type.COMMON, CnpcCombatConfig.COMMON_SPEC);
+
+        // 刀光粒子类型：必须走 Forge RegisterEvent（mod 构造期原版注册表已锁，直注册会崩）。
+        modBus.addListener(org.cnpccombat.particle.CnpcCombatParticles::onRegister);
 
         // 服务端事件走 Forge 主总线。这里只注册服务端侧监听，不触碰任何客户端类。
         IEventBus forgeBus = net.minecraftforge.common.MinecraftForge.EVENT_BUS;

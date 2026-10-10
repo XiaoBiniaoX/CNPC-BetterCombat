@@ -14,6 +14,9 @@ import net.minecraft.client.model.geom.ModelPart;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.api.distmarker.OnlyIn;
+import noppes.npcs.client.renderer.RenderNPCInterface;
+import noppes.npcs.entity.EntityCustomNpc;
+import noppes.npcs.entity.EntityNPCInterface;
 import org.jetbrains.annotations.Nullable;
 
 /**
@@ -30,6 +33,28 @@ public final class NpcAnimator {
     @Nullable
     public static AnimationApplier getAnimation(LivingEntity entity) {
         return entity instanceof IAnimatedPlayer animated ? animated.playerAnimator_getAnimation() : null;
+    }
+
+    /**
+     * CNPC 自定义模型（Alex/Zombie 等）用"替身实体"承载渲染：
+     * {@code RenderCustomNpc$2.setupAnim} 把替身当 entity 传给真正被画的 otherModel，
+     * 导致 {@link #getAnimation} 读到替身的空动画栈，BC 姿态被清掉。
+     * 此方法利用 {@code RenderNPCInterface.currentNpc}（自带 try/finally）把替身解析回真实 NPC。
+     * 默认宽体 Steve / 普通玩家渲染时原样返回，行为不变。
+     */
+    public static LivingEntity resolveRenderTarget(LivingEntity entity) {
+        EntityNPCInterface cur = RenderNPCInterface.currentNpc;
+        if (cur == null || cur == entity) {
+            return entity;
+        }
+        if (!(entity instanceof EntityNPCInterface)) {
+            return entity;
+        }
+        if (cur instanceof EntityCustomNpc custom && custom.modelData != null
+                && custom.modelData.getEntity(cur) == entity) {
+            return cur;
+        }
+        return entity;
     }
 
     public static boolean isAnimating(LivingEntity entity) {

@@ -33,6 +33,7 @@ import net.minecraft.world.level.Level;
 import noppes.npcs.entity.EntityNPCInterface;
 import org.cnpccombat.CnpcCombat;
 import org.cnpccombat.api.NpcAnimationAccess;
+import org.cnpccombat.anim.NpcAnimator;
 import org.cnpccombat.logic.NpcAttackSelector;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -201,6 +202,16 @@ public abstract class ClientNpcAnimationMixin extends LivingEntity implements Np
 
     @Override
     public AnimationApplier playerAnimator_getAnimation() {
+        // Alex 等自定义模型用替身实体渲染：vanilla ItemInHandLayer 把替身传给
+        // playerAnimator 的 HeldItemMixin（rightItem/leftItem 武器旋转，BC pose 驱动），
+        // 替身自己的动画栈是空的 -> isActive()=false -> 武器只剩 vanilla 默认朝向（竖立不旋转）。
+        // 渲染期间 RenderNPCInterface.currentNpc = 真实 NPC，解析回真实 NPC 读它的 applier。
+        // 解析对真实 NPC 自身走恒等分支（cur==entity），不会递归；
+        // 渲染外 currentNpc=null 也恒等返回，行为不变。
+        LivingEntity resolved = NpcAnimator.resolveRenderTarget(this);
+        if (resolved instanceof IAnimatedPlayer animated && resolved != this) {
+            return animated.playerAnimator_getAnimation();
+        }
         return this.cnpc$applier;
     }
 
