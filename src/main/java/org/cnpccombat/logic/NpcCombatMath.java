@@ -80,8 +80,12 @@ public final class NpcCombatMath {
     }
 
     public static double attackRange(Mob mob, AttackHand hand) {
-        WeaponAttributes attributes = hand.attributes();
-        double rangeMultiplier = Math.max(0.05F, hand.attack().rangeMultiplier());
+        return attackRange(hand.attributes(), hand.attack());
+    }
+
+    /** 无 AttackHand 时的重载（客户端粒子解析只有 attributes + attack）。 */
+    public static double attackRange(WeaponAttributes attributes, WeaponAttributes.Attack attack) {
+        double rangeMultiplier = Math.max(0.05F, attack.rangeMultiplier());
         double legacy = attributes.attackRange();
         double range;
         if (legacy > 0.0D) {

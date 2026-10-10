@@ -2,6 +2,7 @@ package org.cnpccombat.client;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.Mob;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.api.distmarker.OnlyIn;
 import org.cnpccombat.api.NpcAnimationAccess;
@@ -29,6 +30,16 @@ public final class ClientPayloadHandler {
                     payload.animationUpswing(),
                     payload.damageUpswing()
             );
+            if (entity instanceof Mob mob) {
+                // BC 斩击拖尾：解析 + 排期到伤害帧生成（复刻玩家侧 playAttackParticles 流程）
+                NpcTrailParticles.schedule(
+                        mob,
+                        payload.offHand(),
+                        payload.animationId(),
+                        payload.length(),
+                        payload.damageUpswing()
+                );
+            }
         }
     }
 

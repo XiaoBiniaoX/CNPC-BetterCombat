@@ -12,7 +12,7 @@ public final class CnpcNetwork {
     }
 
     public static void registerPayloads(RegisterPayloadHandlersEvent event) {
-        // 协议版本从 "1" 提到 "2"：本轮新增了 AnimGroupListPayload。
+        // 协议版本 "2"：第二轮新增 AnimGroupListPayload，第三轮补丁未增删包。
         PayloadRegistrar registrar = event.registrar("2");
         registrar.playToClient(NpcAttackPayload.TYPE, NpcAttackPayload.STREAM_CODEC, NpcAttackPayload::handle);
         registrar.playToClient(AnimGroupListPayload.TYPE, AnimGroupListPayload.STREAM_CODEC, AnimGroupListPayload::handle);

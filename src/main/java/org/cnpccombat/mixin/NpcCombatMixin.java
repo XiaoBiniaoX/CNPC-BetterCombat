@@ -1,6 +1,7 @@
 package org.cnpccombat.mixin;
 
 import net.bettercombat.api.AttackHand;
+import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LivingEntity;
@@ -8,6 +9,7 @@ import net.minecraft.world.entity.Mob;
 import net.minecraft.world.level.Level;
 import noppes.npcs.entity.EntityNPCInterface;
 import org.cnpccombat.api.NpcCombatState;
+import org.cnpccombat.logic.FriendlyFireGuard;
 import org.cnpccombat.logic.NpcCombatLogic;
 import org.jetbrains.annotations.Nullable;
 import org.spongepowered.asm.mixin.Mixin;
@@ -50,6 +52,23 @@ public abstract class NpcCombatMixin extends LivingEntity implements NpcCombatSt
             return;
         }
         NpcCombatLogic.playFallbackMeleeAnimation(mob);
+    }
+
+    /**
+     * Friendly-fire net on the target side (mirrors CNPC's own faction filter
+     * in hurt:734-744, extends it with the config switch). Covers every
+     * player->NPC and NPC->NPC damage path, including BetterCombat cleaves.
+     */
+    @Inject(method = "hurt", at = @At("HEAD"), cancellable = true)
+    private void cnpccombat$friendlyFireFilter(DamageSource source, float amount, CallbackInfoReturnable<Boolean> cir) {
+        if (this.level().isClientSide) {
+            return;
+        }
+        Entity attacker = source.getEntity();
+        if (attacker instanceof LivingEntity living
+                && !FriendlyFireGuard.canDamage(living, (LivingEntity) (Object) this)) {
+            cir.setReturnValue(false);
+        }
     }
 
     @Override

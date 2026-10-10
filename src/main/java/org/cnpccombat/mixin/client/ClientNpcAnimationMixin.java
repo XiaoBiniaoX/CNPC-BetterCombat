@@ -12,6 +12,8 @@ import dev.kosmx.playerAnim.impl.IAnimatedPlayer;
 import dev.kosmx.playerAnim.impl.animation.AnimationApplier;
 import dev.kosmx.playerAnim.minecraftApi.PlayerAnimationRegistry;
 import net.bettercombat.api.WeaponAttributes;
+import net.bettercombat.api.fx.ParticlePlacement;
+import net.bettercombat.api.fx.TrailAppearance;
 import net.bettercombat.client.animation.AttackAnimationSubStack;
 import net.bettercombat.client.animation.CustomAnimationPlayer;
 import net.bettercombat.client.animation.PoseSubStack;
@@ -31,6 +33,7 @@ import net.minecraft.world.level.Level;
 import noppes.npcs.entity.EntityNPCInterface;
 import org.cnpccombat.CnpcCombat;
 import org.cnpccombat.api.NpcAnimationAccess;
+import org.cnpccombat.client.NpcTrailParticles;
 import org.cnpccombat.logic.NpcAttackSelector;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -114,6 +117,21 @@ public abstract class ClientNpcAnimationMixin extends LivingEntity implements Np
     @Unique
     private boolean cnpc$weaponBodyPoseActive;
 
+    @Unique
+    private int cnpc$pendingParticleDelay = -1;
+
+    @Unique
+    private boolean cnpc$pendingParticleOffhand;
+
+    @Unique
+    private float cnpc$pendingParticleRange;
+
+    @Unique
+    private List<ParticlePlacement> cnpc$pendingParticles;
+
+    @Unique
+    private TrailAppearance cnpc$pendingAppearance;
+
     /**
      * 攻击动画俯仰补偿的输入上限（度）。
      *
@@ -177,6 +195,23 @@ public abstract class ClientNpcAnimationMixin extends LivingEntity implements Np
                 this.cnpc$attackVisualTicks--;
                 if (this.cnpc$attackVisualTicks == 0) {
                     this.cnpc$twoHandedAttack = false;
+                }
+            }
+            // 伤害帧到点 -> 生成 BC 斩击拖尾（BC 玩家侧同样是 tick 倒计时，见 AbstractClientPlayerEntityMixin:83-84）
+            if (this.cnpc$pendingParticleDelay >= 0) {
+                if (this.cnpc$pendingParticleDelay == 0) {
+                    NpcTrailParticles.spawn(
+                            (Mob) (Object) this,
+                            this.cnpc$pendingParticleOffhand,
+                            this.cnpc$pendingParticleRange,
+                            this.cnpc$pendingParticles,
+                            this.cnpc$pendingAppearance
+                    );
+                    this.cnpc$pendingParticles = null;
+                    this.cnpc$pendingAppearance = null;
+                    this.cnpc$pendingParticleDelay = -1;
+                } else {
+                    this.cnpc$pendingParticleDelay--;
                 }
             }
         }
@@ -309,6 +344,24 @@ public abstract class ClientNpcAnimationMixin extends LivingEntity implements Np
         } catch (RuntimeException e) {
             CnpcCombat.LOGGER.error("Failed to play NPC attack animation '{}'", id, e);
         }
+    }
+
+    @Override
+    public void cnpc$playAttackParticles(
+            boolean isOffhand,
+            float weaponRange,
+            int delay,
+            List<ParticlePlacement> particles,
+            TrailAppearance appearance
+    ) {
+        if (!this.level().isClientSide || particles == null || particles.isEmpty() || appearance == null) {
+            return;
+        }
+        this.cnpc$pendingParticleOffhand = isOffhand;
+        this.cnpc$pendingParticleRange = weaponRange;
+        this.cnpc$pendingParticles = particles;
+        this.cnpc$pendingAppearance = appearance;
+        this.cnpc$pendingParticleDelay = Math.max(0, delay);
     }
 
     @Unique

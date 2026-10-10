@@ -5,10 +5,13 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.neoforged.bus.api.IEventBus;
+import net.neoforged.fml.ModContainer;
 import net.neoforged.fml.common.Mod;
+import net.neoforged.fml.config.ModConfig;
 import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.event.OnDatapackSyncEvent;
 import net.neoforged.neoforge.event.server.ServerStartedEvent;
+import org.cnpccombat.config.CnpcCombatConfig;
 import org.cnpccombat.logic.AnimationGroupRegistry;
 import org.cnpccombat.network.CnpcNetwork;
 import org.slf4j.Logger;
@@ -18,8 +21,9 @@ public final class CnpcCombat {
     public static final String MOD_ID = "cnpccombat";
     public static final Logger LOGGER = LogUtils.getLogger();
 
-    public CnpcCombat(IEventBus modBus) {
+    public CnpcCombat(IEventBus modBus, ModContainer container) {
         modBus.addListener(CnpcNetwork::registerPayloads);
+        container.registerConfig(ModConfig.Type.COMMON, CnpcCombatConfig.SPEC);
 
         // 服务端事件走 NeoForge 游戏总线。这里只注册服务端侧监听，不触碰任何客户端类。
         IEventBus gameBus = NeoForge.EVENT_BUS;

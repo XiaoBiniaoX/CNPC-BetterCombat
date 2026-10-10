@@ -11,16 +11,21 @@ import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.ai.attributes.AttributeInstance;
 import net.minecraft.world.entity.ai.attributes.AttributeModifier;
 import net.minecraft.world.entity.ai.attributes.Attributes;
+import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.ProjectileWeaponItem;
+import net.neoforged.neoforge.common.ItemAbilities;
 import org.cnpccombat.CnpcCombat;
 import org.cnpccombat.api.NpcCombatState;
+import org.cnpccombat.mixin.LivingUseItemAccessor;
 import org.cnpccombat.network.CnpcNetwork;
 import org.jetbrains.annotations.Nullable;
 
 public final class NpcCombatLogic {
     private static final ResourceLocation DAMAGE_MODIFIER_ID = CnpcCombat.id("attack_damage_multiplier");
     private static final int COMBO_RESET_TICKS = 40;
+    /** Vanilla isBlocking() requires at least this many shield use ticks. */
+    private static final int MIN_BLOCKING_RAISE_TICKS = 5;
 
     private NpcCombatLogic() {
     }
@@ -161,13 +166,38 @@ public final class NpcCombatLogic {
     private static void performAttack(Mob mob, AttackHand hand, @Nullable Entity intendedTarget) {
         if (!(intendedTarget instanceof LivingEntity target)
                 || !validTarget(mob, target)
+                || !FriendlyFireGuard.canDamage(mob, target)
                 || !isWithinRange(mob, target, hand)) {
             return;
         }
+        // 1.21.1 shield raise needs 5 use ticks before isBlocking() passes; without this
+        // a player who reacts to the windup can never block in time.
+        completeShieldRaiseIfStarted(target);
         if (invokeVanillaAttack(mob, target, hand)) {
             playSound(mob, hand.attack().impactSound());
+            NpcSweep.sweep(mob, hand, target);
         }
         mob.setNoActionTime(0);
+    }
+
+    /**
+     * Fast-forward an already-started shield raise so vanilla isBlocking()
+     * (getUseDuration - useItemRemaining >= 5) passes at damage time.
+     * Direction check, durability, sound and knockback all stay vanilla.
+     */
+    private static void completeShieldRaiseIfStarted(LivingEntity target) {
+        if (!(target instanceof Player player) || !player.isUsingItem()) {
+            return;
+        }
+        ItemStack stack = player.getUseItem();
+        if (!stack.canPerformAction(ItemAbilities.SHIELD_BLOCK)) {
+            return;
+        }
+        int duration = stack.getUseDuration(player);
+        int elapsed = duration - player.getUseItemRemainingTicks();
+        if (elapsed < MIN_BLOCKING_RAISE_TICKS) {
+            ((LivingUseItemAccessor) player).cnpccombat$setUseItemRemaining(duration - MIN_BLOCKING_RAISE_TICKS);
+        }
     }
 
     private static boolean validTarget(Mob mob, LivingEntity target) {
