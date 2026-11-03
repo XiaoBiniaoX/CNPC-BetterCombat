@@ -14,7 +14,7 @@ import org.cnpccombat.client.ClientPayloadHandler;
 import org.cnpccombat.logic.AnimationGroupRegistry;
 
 public final class CnpcNetwork {
-    private static final String PROTOCOL_VERSION = "2";
+    private static final String PROTOCOL_VERSION = "3";
 
     public static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
             CnpcCombat.id("main"),
@@ -52,6 +52,19 @@ public final class CnpcNetwork {
                     ctx.get().setPacketHandled(true);
                 })
                 .add();
+
+        CHANNEL.messageBuilder(NpcBcParticlePayload.class, 2, NetworkDirection.PLAY_TO_CLIENT)
+                .encoder(NpcBcParticlePayload::encode)
+                .decoder(NpcBcParticlePayload::decode)
+                .consumerMainThread((msg, ctx) -> {
+                    ctx.get().enqueueWork(() -> {
+                        if (ctx.get().getDirection() == NetworkDirection.PLAY_TO_CLIENT) {
+                            DistExecutor.unsafeRunWhenOn(Dist.CLIENT, () -> () -> ClientPayloadHandler.applyBcParticle(msg));
+                        }
+                    });
+                    ctx.get().setPacketHandled(true);
+                })
+                .add();
     }
 
     public static ResourceLocation channelId() {
@@ -70,6 +83,17 @@ public final class CnpcNetwork {
         CHANNEL.send(
                 PacketDistributor.TRACKING_ENTITY.with(() -> mob),
                 new NpcAttackPayload(mob.getId(), animationId, offHand, twoHanded, length, animationUpswing, damageUpswing)
+        );
+    }
+
+    /**
+     * NPC 刀光交给 bc_particle 渲染（仅在装有时调用）。
+     * 只发"谁/动画名/哪只手/攻击距离"，动画→粒子的映射由客户端读取资源数据。
+     */
+    public static void sendBcParticle(Mob mob, String animationId, boolean offHand, float range) {
+        CHANNEL.send(
+                PacketDistributor.TRACKING_ENTITY.with(() -> mob),
+                new NpcBcParticlePayload(mob.getId(), animationId, offHand, range)
         );
     }
 

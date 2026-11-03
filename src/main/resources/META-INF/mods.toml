@@ -4,7 +4,7 @@ license="MIT"
 
 [[mods]]
 modId="cnpccombat"
-version="1.4.0"
+version="1.5.0"
 displayName="CNPC BetterCombat"
 displayURL="https://space.bilibili.com/353609880"
 authors="Bin"
@@ -46,6 +46,14 @@ description='''Makes CustomNPCs entities use Better Combat attack and weapon pos
     modId="customnpcs"
     mandatory=true
     versionRange="[1,)"
+    ordering="AFTER"
+    side="BOTH"
+
+# CNPCplus-Fix 硬前置：未安装或版本低于 4.0.5 直接不启动。
+[[dependencies.cnpccombat]]
+    modId="cnpcplus"
+    mandatory=true
+    versionRange="[4.0.5,)"
     ordering="AFTER"
     side="BOTH"
 

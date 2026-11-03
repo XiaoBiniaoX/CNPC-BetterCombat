@@ -17,13 +17,13 @@ import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.AxeItem;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.Items;
 import net.minecraft.world.item.ProjectileWeaponItem;
 import net.minecraft.world.item.UseAnim;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import org.cnpccombat.CnpcCombat;
 import org.cnpccombat.api.NpcCombatState;
+import org.cnpccombat.compat.bcp.BcParticleCompat;
 import org.cnpccombat.config.CnpcCombatConfig;
 import org.cnpccombat.network.CnpcNetwork;
 import org.cnpccombat.particle.SlashTrailUtil;
@@ -173,11 +173,17 @@ public final class NpcCombatLogic {
     }
 
     private static void performAttack(Mob mob, AttackHand hand, @Nullable Entity intendedTarget) {
-        // 刀光粒子：每次完成蓄力的挥击都显示（与 BC 一致，挥空也有），走服务端广播全端可见。
-        if (mob.level() instanceof ServerLevel serverLevel) {
-            SlashTrailUtil.spawnServer(serverLevel, mob, hand.isOffHand(),
-                    (float) NpcCombatMath.attackRange(mob, hand),
-                    hand.attack().animation(), hand.itemStack());
+        // 刀光粒子：每次完成蓄力的挥击都显示（与 BC 一致，挥空也有）。
+        // 装了「更好的战斗粒子」时改由它渲染（动画→粒子映射走它的资源数据，
+        // 可被 Malfu 等动作 mod 覆盖）；否则用本模组移植的尾迹。
+        if (mob.level() instanceof ServerLevel serverLevel && CnpcCombatConfig.COMMON.enableWeaponTrails.get()) {
+            float range = (float) NpcCombatMath.attackRange(mob, hand);
+            if (BcParticleCompat.isLoaded()) {
+                CnpcNetwork.sendBcParticle(mob, hand.attack().animation(), hand.isOffHand(), range);
+            } else {
+                SlashTrailUtil.spawnServer(serverLevel, mob, hand.isOffHand(), range,
+                        hand.attack().animation(), hand.itemStack());
+            }
         }
         if (!(intendedTarget instanceof LivingEntity target)
                 || !validTarget(mob, target)
@@ -304,7 +310,9 @@ public final class NpcCombatLogic {
         // 斧破盾：主手斧必触发（对齐 vanilla Mob.tryDisableShield 的"主手 AxeItem"条件，但去掉概率）。
         // addCooldown 只拦"再次开始使用"，不打断已在 use 中的 stack；必须显式 stopUsingItem 放下盾。
         if (mob.getMainHandItem().getItem() instanceof AxeItem) {
-            player.getCooldowns().addCooldown(Items.SHIELD, 100);
+            // 冷却必须落在**实际使用中的盾**上：写死 Items.SHIELD 只会让未装备的原版盾
+            // 进冷却，模组盾（如斯巴达之盾）只掉耐久、照常举盾。
+            player.getCooldowns().addCooldown(shield.getItem(), 100);
             player.level().broadcastEntityEvent(player, (byte) 30);
             player.stopUsingItem();
         }

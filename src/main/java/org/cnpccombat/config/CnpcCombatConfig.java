@@ -3,9 +3,10 @@ package org.cnpccombat.config;
 import net.minecraftforge.common.ForgeConfigSpec;
 
 /**
- * COMMON 类型配置：文件落 {@code config/cnpccombat.toml}（两侧均可读取）。
+ * COMMON 类型配置：文件落 {@code config/cnpccombat-common.toml}（两侧均可读取）。
  * Forge 内建 FileWatcher 监听该文件——游戏运行中直接改 toml 保存即生效，无需重启。
  * 所有使用点均通过 {@code .get()} 热读，无静态缓存。
+ * 游戏内入口：Mod 列表 → Config（自建屏幕，见 {@code CnpcCombatConfigScreen}）。
  */
 public final class CnpcCombatConfig {
     public static final ForgeConfigSpec COMMON_SPEC;

@@ -36,6 +36,11 @@ public final class CnpcCombat {
         forgeBus.addListener(CnpcCombat::onServerStarted);
         forgeBus.addListener(CnpcCombat::onDatapackSync);
 
+        // 客户端：注册 Mod 列表的 Config 屏幕（不装 Cloth 也能点开，按钮不会变黑）。
+        net.minecraftforge.fml.DistExecutor.unsafeRunWhenOn(
+                net.minecraftforge.api.distmarker.Dist.CLIENT,
+                () -> org.cnpccombat.client.CnpcCombatClient::registerConfigScreen);
+
         // 启动横幅不打日志（用户要求只保留 ERROR 级）。
         // Forge 自己会在 mod 列表里显示本 mod，无需重复告知。
     }
