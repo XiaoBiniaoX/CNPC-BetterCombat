@@ -11,7 +11,7 @@ import org.cnpccombat.config.CnpcCombatConfig;
  * <p>CNPC natively blocks (EntityNPCInterface.hurt:734-744):
  * same-faction NPC->NPC always, and friendly-faction Player->NPC always.
  * This guard extends that when the config switch is on:
- * - Player -> NPC: only if the NPC faction is aggressive to the player (neutral also protected).
+ * - Player -> NPC: only if the NPC faction is NOT friendly to the player (neutral also allowed).
  * - NPC -> NPC: only if factions differ AND the attacker faction is hostile to the target faction.
  * - NPC -> Player: only if the NPC faction is NOT friendly to the player.
  * Everything else (mob vs mob, mob vs player, etc.) passes vanilla behavior.
@@ -38,7 +38,8 @@ public final class FriendlyFireGuard {
             return true;
         }
         if (attacker instanceof Player player && target instanceof EntityNPCInterface npcTarget) {
-            return npcTarget.faction.isAggressiveToPlayer(player);
+            // 只挡友好阵营（对齐 CNPC 原生 hurt:734-744），中立/敌对都可打
+            return !npcTarget.faction.isFriendlyToPlayer(player);
         }
         return true;
     }

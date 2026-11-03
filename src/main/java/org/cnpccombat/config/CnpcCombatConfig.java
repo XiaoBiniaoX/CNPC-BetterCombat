@@ -15,14 +15,14 @@ public final class CnpcCombatConfig {
 
     /**
      * When true (default):
-     * - Player attacking an NPC: only lands if the NPC faction is aggressive to that player.
+     * - Player attacking an NPC: only lands if the NPC faction is NOT friendly to that player (neutral also allowed).
      * - NPC attacking an NPC: only lands if factions differ and the attacker faction is hostile to the target faction.
      * - NPC attacking a player: only lands if the NPC faction is NOT friendly to that player.
      */
     public static final ModConfigSpec.BooleanValue DISABLE_FRIENDLY_FIRE = BUILDER
             .comment(
                     "关闭涉及 NPC 的 BetterCombat 风格友军伤害（默认开启）",
-                    "玩家打 NPC：只有该 NPC 阵营对玩家敌对时才会掉血",
+                    "玩家打 NPC：只有该 NPC 阵营不友好该玩家时才会掉血（中立/敌对均可打）",
                     "NPC 打 NPC：只有阵营不同且攻击方阵营敌对目标阵营时才会掉血",
                     "NPC 打玩家：只有该 NPC 阵营不友好该玩家时才会掉血",
                     "游戏内 Mods -> 本模组 -> Config 可直接修改，改完即时生效"
