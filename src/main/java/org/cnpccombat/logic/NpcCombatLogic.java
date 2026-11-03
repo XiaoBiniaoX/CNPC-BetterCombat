@@ -8,10 +8,16 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundEvents;
+import net.minecraft.util.Mth;
+import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Mob;
+import net.minecraft.world.entity.ai.attributes.Attributes;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.AxeItem;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 import net.minecraft.world.item.ProjectileWeaponItem;
 import net.minecraft.world.item.UseAnim;
 import net.minecraft.world.phys.AABB;
@@ -187,6 +193,7 @@ public final class NpcCombatLogic {
         // would not count as blocking when damage lands. Honor block if shield is up.
         if (isTargetBlockingShield(target)) {
             playBlockEffects(mob, target);
+            applyBlockConsequences(mob, target);
             mob.setNoActionTime(0);
             return;
         }
@@ -206,6 +213,7 @@ public final class NpcCombatLogic {
                 }
                 if (isTargetBlockingShield(sweepTarget)) {
                     playBlockEffects(mob, sweepTarget);
+                    applyBlockConsequences(mob, sweepTarget);
                     continue;
                 }
                 invokeVanillaAttack(mob, sweepTarget, hand);
@@ -268,6 +276,37 @@ public final class NpcCombatLogic {
                     1.0F,
                     0.8F + target.getRandom().nextFloat() * 0.4F
             );
+        }
+    }
+
+    /**
+     * 格挡的后续效果。本路径的时机修正（举起即算格挡）绕过了 vanilla {@code hurt()}，
+     * 而盾耐久（{@code Player.hurtCurrentlyUsedShield}）与斧破盾（{@code Mob.tryDisableShield}）
+     * 都发生在 hurt()/doHurtTarget 内部 —— 不手动补的话格挡零消耗、斧永远不破盾。
+     * （CNPC 的 doHurtTarget 是完整重写、不调 super，本身就没有任何斧破盾逻辑。）
+     * 上游 {@link #isTargetBlockingShield} 已用 {@code getUseAnimation()==BLOCK} 认定在格挡，
+     * 这里对任意"正在使用且用途为盾"的物品结算（覆盖模组盾，不按 Items.SHIELD 精确筛）。
+     */
+    private static void applyBlockConsequences(Mob mob, LivingEntity target) {
+        if (!(target instanceof Player player)) {
+            return;
+        }
+        ItemStack shield = player.getUseItem();
+        if (shield.isEmpty() || shield.getUseAnimation() != UseAnim.BLOCK) {
+            return;
+        }
+        // 盾耐久：伤害 >= 3 时扣 1+floor(伤害)（对齐 Player.hurtCurrentlyUsedShield 阈值）。
+        float amount = (float) mob.getAttributeValue(Attributes.ATTACK_DAMAGE);
+        if (amount >= 3.0F) {
+            InteractionHand hand = player.getUsedItemHand();
+            shield.hurtAndBreak(1 + Mth.floor(amount), player, p -> p.broadcastBreakEvent(hand));
+        }
+        // 斧破盾：主手斧必触发（对齐 vanilla Mob.tryDisableShield 的"主手 AxeItem"条件，但去掉概率）。
+        // addCooldown 只拦"再次开始使用"，不打断已在 use 中的 stack；必须显式 stopUsingItem 放下盾。
+        if (mob.getMainHandItem().getItem() instanceof AxeItem) {
+            player.getCooldowns().addCooldown(Items.SHIELD, 100);
+            player.level().broadcastEntityEvent(player, (byte) 30);
+            player.stopUsingItem();
         }
     }
 
