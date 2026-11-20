@@ -16,6 +16,7 @@ import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.ModifyVariable;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
@@ -54,6 +55,14 @@ public abstract class NpcCombatMixin extends LivingEntity implements NpcCombatSt
             return;
         }
         NpcCombatLogic.playFallbackMeleeAnimation(mob);
+    }
+
+    @ModifyVariable(method = "doHurtTarget", at = @At(value = "STORE", ordinal = 0), index = 2)
+    private float cnpc$scaleMeleeStrength(float strength) {
+        // 首次写入伤害局部变量在 CNPC 的 MeleeAttackEvent 之前。
+        return this.cnpc$callingVanillaAttack
+                ? NpcCombatLogic.scaleAttackDamage(strength, this.cnpc$pendingAttack)
+                : strength;
     }
 
     @Override

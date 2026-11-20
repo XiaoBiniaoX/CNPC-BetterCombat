@@ -13,7 +13,6 @@ import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Mob;
-import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.AxeItem;
 import net.minecraft.world.item.ItemStack;
@@ -21,6 +20,7 @@ import net.minecraft.world.item.ProjectileWeaponItem;
 import net.minecraft.world.item.UseAnim;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
+import noppes.npcs.entity.EntityNPCInterface;
 import org.cnpccombat.CnpcCombat;
 import org.cnpccombat.api.NpcCombatState;
 import org.cnpccombat.compat.bcp.BcParticleCompat;
@@ -47,6 +47,10 @@ public final class NpcCombatLogic {
             return false;
         }
         return NpcAttackSelector.hasCombatWeapon(mob);
+    }
+
+    public static float scaleAttackDamage(float strength, AttackHand hand) {
+        return (float) (strength * hand.attack().damageMultiplier());
     }
 
     public static void playFallbackMeleeAnimation(Mob mob) {
@@ -199,12 +203,12 @@ public final class NpcCombatLogic {
         // would not count as blocking when damage lands. Honor block if shield is up.
         if (isTargetBlockingShield(target)) {
             playBlockEffects(mob, target);
-            applyBlockConsequences(mob, target);
+            applyBlockConsequences(mob, target, hand);
             mob.setNoActionTime(0);
             return;
         }
 
-        boolean primaryHit = invokeVanillaAttack(mob, target, hand);
+        boolean primaryHit = invokeVanillaAttack(mob, target);
 
         List<LivingEntity> sweepTargets = new ArrayList<>();
         if (CnpcCombatConfig.COMMON.enableSweep.get()) {
@@ -219,10 +223,10 @@ public final class NpcCombatLogic {
                 }
                 if (isTargetBlockingShield(sweepTarget)) {
                     playBlockEffects(mob, sweepTarget);
-                    applyBlockConsequences(mob, sweepTarget);
+                    applyBlockConsequences(mob, sweepTarget, hand);
                     continue;
                 }
-                invokeVanillaAttack(mob, sweepTarget, hand);
+                invokeVanillaAttack(mob, sweepTarget);
             }
             playSweepEffects(mob, hand);
         }
@@ -237,7 +241,7 @@ public final class NpcCombatLogic {
         return target != mob && target.isAlive() && !target.isSpectator() && !mob.isAlliedTo(target);
     }
 
-    private static boolean invokeVanillaAttack(Mob mob, LivingEntity target, AttackHand hand) {
+    private static boolean invokeVanillaAttack(Mob mob, LivingEntity target) {
         NpcCombatState state = (NpcCombatState) mob;
         try {
             state.cnpc$setCallingVanillaAttack(true);
@@ -293,7 +297,7 @@ public final class NpcCombatLogic {
      * 上游 {@link #isTargetBlockingShield} 已用 {@code getUseAnimation()==BLOCK} 认定在格挡，
      * 这里对任意"正在使用且用途为盾"的物品结算（覆盖模组盾，不按 Items.SHIELD 精确筛）。
      */
-    private static void applyBlockConsequences(Mob mob, LivingEntity target) {
+    private static void applyBlockConsequences(Mob mob, LivingEntity target, AttackHand attack) {
         if (!(target instanceof Player player)) {
             return;
         }
@@ -302,7 +306,7 @@ public final class NpcCombatLogic {
             return;
         }
         // 盾耐久：伤害 >= 3 时扣 1+floor(伤害)（对齐 Player.hurtCurrentlyUsedShield 阈值）。
-        float amount = (float) mob.getAttributeValue(Attributes.ATTACK_DAMAGE);
+        float amount = scaleAttackDamage(((EntityNPCInterface) mob).stats.melee.getStrength(), attack);
         if (amount >= 3.0F) {
             InteractionHand hand = player.getUsedItemHand();
             shield.hurtAndBreak(1 + Mth.floor(amount), player, p -> p.broadcastBreakEvent(hand));
