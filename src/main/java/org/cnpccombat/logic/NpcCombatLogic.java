@@ -8,21 +8,16 @@ import net.minecraft.sounds.SoundEvent;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Mob;
-import net.minecraft.world.entity.ai.attributes.AttributeInstance;
-import net.minecraft.world.entity.ai.attributes.AttributeModifier;
-import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.ProjectileWeaponItem;
 import net.neoforged.neoforge.common.ItemAbilities;
-import org.cnpccombat.CnpcCombat;
 import org.cnpccombat.api.NpcCombatState;
 import org.cnpccombat.mixin.LivingUseItemAccessor;
 import org.cnpccombat.network.CnpcNetwork;
 import org.jetbrains.annotations.Nullable;
 
 public final class NpcCombatLogic {
-    private static final ResourceLocation DAMAGE_MODIFIER_ID = CnpcCombat.id("attack_damage_multiplier");
     private static final int COMBO_RESET_TICKS = 40;
     /** Vanilla isBlocking() requires at least this many shield use ticks. */
     private static final int MIN_BLOCKING_RAISE_TICKS = 5;
@@ -173,7 +168,7 @@ public final class NpcCombatLogic {
         // 1.21.1 shield raise needs 5 use ticks before isBlocking() passes; without this
         // a player who reacts to the windup can never block in time.
         completeShieldRaiseIfStarted(target);
-        if (invokeVanillaAttack(mob, target, hand)) {
+        if (invokeVanillaAttack(mob, target)) {
             playSound(mob, hand.attack().impactSound());
             NpcSweep.sweep(mob, hand, target);
         }
@@ -204,28 +199,13 @@ public final class NpcCombatLogic {
         return target != mob && target.isAlive() && !target.isSpectator() && !mob.isAlliedTo(target);
     }
 
-    private static boolean invokeVanillaAttack(Mob mob, LivingEntity target, AttackHand hand) {
+    private static boolean invokeVanillaAttack(Mob mob, LivingEntity target) {
         NpcCombatState state = (NpcCombatState) mob;
-        AttributeInstance damage = mob.getAttribute(Attributes.ATTACK_DAMAGE);
-        double multiplier = Math.max(0.0D, hand.attack().damageMultiplier());
-        if (damage != null) {
-            damage.removeModifier(DAMAGE_MODIFIER_ID);
-            if (multiplier != 1.0D) {
-                damage.addTransientModifier(new AttributeModifier(
-                        DAMAGE_MODIFIER_ID,
-                        multiplier - 1.0D,
-                        AttributeModifier.Operation.ADD_MULTIPLIED_BASE
-                ));
-            }
-        }
         try {
             state.cnpc$setCallingVanillaAttack(true);
             return mob.doHurtTarget(target);
         } finally {
             state.cnpc$setCallingVanillaAttack(false);
-            if (damage != null) {
-                damage.removeModifier(DAMAGE_MODIFIER_ID);
-            }
         }
     }
 

@@ -16,6 +16,7 @@ import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.ModifyArg;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
@@ -52,6 +53,21 @@ public abstract class NpcCombatMixin extends LivingEntity implements NpcCombatSt
             return;
         }
         NpcCombatLogic.playFallbackMeleeAnimation(mob);
+    }
+
+    @ModifyArg(
+            method = "doHurtTarget",
+            at = @At(
+                    value = "INVOKE",
+                    target = "Lnet/minecraft/world/entity/Entity;hurt(Lnet/minecraft/world/damagesource/DamageSource;F)Z"
+            ),
+            index = 1
+    )
+    private float cnpc$applyActionDamageMultiplier(float damage) {
+        if (!this.cnpc$callingVanillaAttack || this.cnpc$pendingAttack == null) {
+            return damage;
+        }
+        return (float) (damage * Math.max(0.0D, this.cnpc$pendingAttack.attack().damageMultiplier()));
     }
 
     /**

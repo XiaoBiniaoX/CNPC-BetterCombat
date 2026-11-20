@@ -63,7 +63,8 @@ public final class NpcSweep {
         double multiplier = -(maxPenalty / extraCap) * Math.min(extraCap, extras.size());
         double factor = Math.max(0.0D, 1.0D + multiplier);
 
-        float baseDamage = ((EntityNPCInterface) mob).stats.melee.getStrength();
+        float baseDamage = (float) (((EntityNPCInterface) mob).stats.melee.getStrength()
+                * Math.max(0.0D, hand.attack().damageMultiplier()));
         DamageSource source = npcDamageSource(mob);
         if (source == null) {
             return;
