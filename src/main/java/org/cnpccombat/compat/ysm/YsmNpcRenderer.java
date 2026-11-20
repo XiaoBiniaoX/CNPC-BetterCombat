@@ -307,12 +307,10 @@ public class YsmNpcRenderer
      *       而 BC/playerAnimator 驱动的是 <b>vanilla humanoid 的 ModelPart</b></li>
      *   <li>两套骨骼完全独立 → <b>BC 的骨骼动画对 YSM 模型本来就无效</b></li>
      * </ul>
-     * 所以玩家攻击时看到的动作，其实是 YSM 模型自带的 {@code swing_hand}
-     * （配合 BC 改过的攻速与音效，观感上像是 BC 的动作）。
+     * 这只说明两种渲染路径的骨架独立。YSM 接管时可走模型的普通挥击；
+     * 如果 YSM 交还渲染，原版玩家模型则可以显示 playerAnimator 的 BC 姿态。
      *
-     * <p>跨骨架搬运骨骼数据是玩家身上不存在的行为，且注定失败 ——
-     * 两套骨架的 pivot 布局、层级、比例都不同。
-     * 现在 NPC 走与玩家<b>完全相同</b>的路径：只播模型自带的动画。
+     * <p>此前直接复制局部欧拉角没有处理 pivot、层级和坐标差异，不再启用。
      *
      * <h2>★ override 已整个删除（第三十二轮）</h2>
      * 它最后只剩一个 {@code dumpBones} 诊断日志，而那个日志**误导了我好几轮**：

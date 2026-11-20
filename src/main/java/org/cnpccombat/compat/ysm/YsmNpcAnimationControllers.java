@@ -163,14 +163,7 @@ final class YsmNpcAnimationControllers {
                 (e, ev) -> holdState(e, ev, InteractionHand.MAIN_HAND));
         binder(installers, "post_hold", provider, bundle, resources, 0.0f, (e, ev) -> STOP);
 
-        // 挥击/攻击。过渡 0 —— 攻击动画要立刻起效。
-        //
-        // ★ swing 必须用 binder（而不是 slot）：模型作者的 BetterCombat 控制器
-        // 是靠**文件名** `xxx@player_ctrl_swing.molang` 挂上来的，
-        // 这类脚本只存在于 ModelResourceBundle.getEvents() 里，
-        // 只有 ControllerSlotBinder 会去扫 `^player_ctrl_swing(_.+)?$`。
-        // 用 slot() 只会注册我们自己的 predicate，模型的 BC 脚本被无声忽略
-        // → NPC 只能播通用 swing_hand，播不了 BC 动画（第十二轮修的 bug）。
+        // 保留模型自己的挥击槽位；未声明时由普通挥击 predicate 补足。过渡时间为 0。
         binder(installers, "pre_swing", provider, bundle, resources, 0.0f, (e, ev) -> STOP);
         binder(installers, "swing", provider, bundle, resources,
                 0.0f, YsmNpcAnimationControllers::swingState);
@@ -191,8 +184,7 @@ final class YsmNpcAnimationControllers {
         // parallel：与 pre_parallel 同理，放在最后叠加
         parallel(installers, "parallel", provider, bundle, resources, true);
 
-        // 全部装上去。顺便统计实际注册了哪些控制器 —— 这是排查
-        // "模型的 BC 脚本有没有被挂上"的关键观测点。
+        // 诊断时统计模型实际注册的控制器槽位。
         java.util.List<String> registered =
                 YsmDebug.enabled() ? new ArrayList<>() : null;
         for (oO00o00OoO0OO0O0oooooO0o<YsmNpcAnimatable> installer : installers) {
@@ -213,8 +205,7 @@ final class YsmNpcAnimationControllers {
         }
         if (registered != null) {
             YsmDebug.once("controllers installed ({}): {}", registered.size(), registered);
-            // 同时把模型声明了哪些条目打出来，用于对照
-            // （BC 脚本挂在 events 里，形如 player_ctrl_swing）。
+            // 同时记录模型声明的控制器和 Molang 事件条目。
             try {
                 YsmDebug.once("model animationEntries: {}",
                         provider.O00OOOooOoooOoo0o0o0oO0O(bundle, resources).keySet());
@@ -536,77 +527,33 @@ final class YsmNpcAnimationControllers {
         return has(event, slot) ? play(event, slot, LOOP) : STOP;
     }
 
-    /**
-     * 挥击/攻击动画。
-     *
-     * <p>这是"NPC 攻击时有动画"的关键。本 mod 的战斗逻辑会设置
-     * {@code swinging}/{@code swingingArm}，YSM 侧据此播 swing 动画。
-     */
+    /** YSM 2.6.5 玩家普通挥击路径，模型自己的 swing 控制器仍由槽位装配器处理。 */
     private static O0oOo0OoO0O0o0000o0O00o0 swingState(
             LivingEntity e, OO00O0o0OooOOOo00OO00o00<YsmNpcAnimatable> event) {
         if (!e.swinging || e.isSleeping()) {
-            return STOP;
+            // 让已经开始的单次动画按模型本身的时长播完。
+            return CONTINUE;
         }
 
-        // ===== A 线：优先用 BetterCombat 的动画 =====
-        // 取本 mod 记录的当前 BC 攻击动画名（格式与 YSM 的
-        // ctrl.bcombat_attack_animation 一致：**带双引号**，
-        // 因为 playerAnimator 的 AnimationJson 用 JsonElement.toString() 存 name）。
-        String bcAnim = e instanceof org.cnpccombat.api.NpcAnimationAccess access
-                ? access.cnpc$getCurrentAttackAnimation() : null;
-
-        if (bcAnim != null && !bcAnim.isEmpty()) {
-            // 模型作者按 YSM 约定命名时，动画键**含引号**（如
-            // ["one_handed_slash_horizontal_right"]）；但也可能有人写不带引号。
-            // 两种都试，命中即用 —— 这就是 A 线。
-            String unquoted = stripQuotes(bcAnim);
-            if (has(event, bcAnim)) {
-                YsmDebug.log("swing", "A-line: BC anim {} (quoted) -> play", bcAnim);
-                return play(event, bcAnim, PLAY_ONCE);
-            }
-            if (!unquoted.equals(bcAnim) && has(event, unquoted)) {
-                YsmDebug.log("swing", "A-line: BC anim {} (unquoted) -> play", unquoted);
-                return play(event, unquoted, PLAY_ONCE);
-            }
-            // A 线未命中：模型里没有这个 BC 动画 -> 落到 B 线
-            YsmDebug.log("swing",
-                    "A-line MISS: model has no BC anim {} -> fallback to B-line", bcAnim);
+        var animatable = event.o0OOooo0o0OO00OoOOOo0o0O();
+        // YSM 的状态跟踪器以 1 标记 SWING，同一 tick 只重启一次。
+        boolean started = e.swingTime == 0 && animatable.Ooooo0oooO0oooOOOoO0000O()
+                .Oo0Oo0o00O00Oo0OOoOOoooo(1);
+        if (started) {
+            event.o0OOO0o0o0OOo000oO00o00O().OOOOo0O0oO0OOo0O0O0Oo0O0(); // indicateReload()
         }
 
-        // ===== B 线：播模型自带的通用挥击动画（与玩家完全一致）=====
-        //
-        // ★ 这里**必须播 swing_hand**，不能返回 STOP 去等"BC 骨骼写入"。
-        // 早先的 B 线是把 BC 的骨骼旋转搬进 YSM 骨骼，结果姿态严重诡异
-        // （手臂平举到背后）。原因是玩家身上根本没有这种行为：
-        // YSM 只读 BC 的动画**名字**，从不复用它的骨骼数据
-        // （详见 YsmNpcRenderer.renderEarly 的注释与 task_plan_ysm.md 第 0 条）。
-        // 玩家攻击时看到的动作，就是模型自带的 swing_hand 配合 BC 的攻速/音效。
-        //
-        // 所以"向玩家看齐"= 让 NPC 也播 swing_hand。
-        String generic = e.swingingArm == InteractionHand.OFF_HAND
-                ? "swing_offhand" : "swing_hand";
-        if (has(event, generic)) {
-            YsmDebug.log("swing", "generic swing {} (bcAnim={} swingTime={})",
-                    generic, bcAnim, e.swingTime);
-            return play(event, generic, PLAY_ONCE);
+        var conditions = animatable.OOoOOoOO00ooo0Ooo0o000O0();
+        boolean mainHand = e.swingingArm == InteractionHand.MAIN_HAND;
+        var condition = mainHand ? conditions.Oo0Oo0o00O00Oo0OOoOOoooo()
+                : conditions.o0OOooo0o0OO00OoOOOo0o0O();
+        String animation = condition == null ? null : condition.Oo0Oo0o00O00Oo0OOoOOoooo(e, e.swingingArm);
+        if (animation == null || animation.isBlank()) {
+            animation = mainHand ? "swing_hand" : "swing_offhand";
         }
-        YsmDebug.log("swing", "no swing animation at all (bcAnim={})", bcAnim);
-        return STOP;
-    }
-
-    /**
-     * 去掉字符串首尾的双引号。
-     *
-     * <p>BC 动画名经 playerAnimator 的 {@code AnimationJson} 解析后**带引号**
-     * （它用 {@code JsonElement.toString()} 存 name），YSM 的模型作者也按带引号
-     * 命名动画（见 18_wedding 的注释「动画名要加双引号 是个小bug」）。
-     * 但不能假定所有模型都这样，所以两种形式都要试。
-     */
-    private static String stripQuotes(String s) {
-        if (s.length() >= 2 && s.charAt(0) == '"' && s.charAt(s.length() - 1) == '"') {
-            return s.substring(1, s.length() - 1);
-        }
-        return s;
+        int format = animatable.O0ooooOO0oOo000O0Oo00OOO().Ooooo0oooO0oooOOOoO0000O()
+                .oOOOo0OOO0ooooo0O00OO0o0(); // formatVer()
+        return oOOO0Oo0O00oo0O0oO0OooO0.Oo0Oo0o00O00Oo0OOoOOoooo(event, animation, PLAY_ONCE, format);
     }
 
     /** 使用物品（吃/喝/举盾/拉弓）。 */

@@ -1,13 +1,16 @@
 package org.cnpccombat.client;
 
 import net.minecraft.client.Minecraft;
+import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.api.distmarker.OnlyIn;
 import org.cnpccombat.api.NpcAnimationAccess;
+import org.cnpccombat.api.NpcYsmState;
 import org.cnpccombat.compat.bcp.BcParticleClientBridge;
 import org.cnpccombat.compat.bcp.BcParticleCompat;
+import org.cnpccombat.compat.ysm.YsmCompat;
 import org.cnpccombat.logic.AnimationGroupRegistry;
 import org.cnpccombat.network.AnimGroupListPayload;
 import org.cnpccombat.network.NpcAttackPayload;
@@ -33,6 +36,12 @@ public final class ClientPayloadHandler {
                     payload.animationUpswing,
                     payload.damageUpswing
             );
+            if (YsmCompat.isLoaded() && entity instanceof LivingEntity npc && NpcYsmState.hasYsmModel(npc)) {
+                // YSM 玩家侧在 BC 起手时重置挥击时钟，并使用本次攻击的手。
+                npc.swingingArm = payload.offHand ? InteractionHand.OFF_HAND : InteractionHand.MAIN_HAND;
+                npc.swingTime = -1;
+                npc.swinging = true;
+            }
         }
     }
 

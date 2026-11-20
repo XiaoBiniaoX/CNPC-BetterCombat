@@ -128,10 +128,6 @@ public final class YsmBridge {
             return false;
         }
         try {
-            // 把 YSM 的 ctrl.bcombat_attack_animation 扩展到 NPC。
-            // 必须等 YSM 的 CtrlBinding 单例初始化完才能覆盖，所以放在这里
-            // （第一次渲染 NPC 时）而不是 mod 构造期。内部只会真正执行一次。
-            YsmBetterCombatBinding.install();
             // 第一次渲染 NPC 时打一条"诊断已生效"的标记。
             // 有了它就能区分"没问题"和"日志没开"——上一轮正是因为
             // JVM 参数没加上，跑完一轮零日志，白费一次测试。

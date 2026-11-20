@@ -1,5 +1,7 @@
 package org.cnpccombat.mixin.client;
 
+import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.api.distmarker.OnlyIn;
 import noppes.npcs.client.gui.model.GuiCreationEntities;
@@ -55,6 +57,14 @@ public abstract class GuiCreationEntitiesYsmMixin extends GuiCreationScreenInter
      */
     private GuiCreationEntitiesYsmMixin() {
         super(null);
+    }
+
+    @Override
+    public void drawNpc(GuiGraphics graphics, LivingEntity entity, int x, int y, float zoom, int rotation) {
+        // CNPC draws the 3D preview in front of its sub-GUI, even after the dialog is rendered.
+        if (!(this.getSubGui() instanceof GuiStringSelection)) {
+            super.drawNpc(graphics, entity, x, y, zoom, rotation);
+        }
     }
 
     @Inject(method = "init", at = @At("TAIL"))
