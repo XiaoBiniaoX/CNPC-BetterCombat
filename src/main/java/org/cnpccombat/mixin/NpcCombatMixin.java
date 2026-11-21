@@ -7,6 +7,8 @@ import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.PathfinderMob;
 import net.minecraft.world.level.Level;
+import noppes.npcs.EventHooks;
+import noppes.npcs.api.event.NpcEvent;
 import noppes.npcs.entity.EntityNPCInterface;
 import org.cnpccombat.api.NpcCombatState;
 import org.cnpccombat.logic.NpcCombatLogic;
@@ -16,7 +18,8 @@ import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
-import org.spongepowered.asm.mixin.injection.ModifyVariable;
+import org.spongepowered.asm.mixin.injection.ModifyArg;
+import org.spongepowered.asm.mixin.injection.Redirect;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
@@ -29,6 +32,7 @@ public abstract class NpcCombatMixin extends LivingEntity implements NpcCombatSt
     @Unique private int cnpc$intendedTargetId = -1;
     @Unique private boolean cnpc$callingVanillaAttack;
     @Unique @Nullable private AttackHand cnpc$pendingAttack;
+    @Unique private float cnpc$meleeEventDamage;
 
     protected NpcCombatMixin(EntityType<? extends PathfinderMob> type, Level level) {
         super(type, level);
@@ -57,12 +61,23 @@ public abstract class NpcCombatMixin extends LivingEntity implements NpcCombatSt
         NpcCombatLogic.playFallbackMeleeAnimation(mob);
     }
 
-    @ModifyVariable(method = "doHurtTarget", at = @At(value = "STORE", ordinal = 0), index = 2)
-    private float cnpc$scaleMeleeStrength(float strength) {
-        // 首次写入伤害局部变量在 CNPC 的 MeleeAttackEvent 之前。
-        return this.cnpc$callingVanillaAttack
-                ? NpcCombatLogic.scaleAttackDamage(strength, this.cnpc$pendingAttack)
-                : strength;
+    @Redirect(method = "doHurtTarget", at = @At(value = "INVOKE", remap = false,
+            target = "Lnoppes/npcs/EventHooks;onNPCAttacksMelee(Lnoppes/npcs/entity/EntityNPCInterface;Lnoppes/npcs/api/event/NpcEvent$MeleeAttackEvent;)Z"))
+    private boolean cnpc$scaleMeleeEvent(EntityNPCInterface npc, NpcEvent.MeleeAttackEvent event) {
+        if (!this.cnpc$callingVanillaAttack) {
+            return EventHooks.onNPCAttacksMelee(npc, event);
+        }
+        event.damage = NpcCombatLogic.scaleAttackDamage(event.damage, this.cnpc$pendingAttack);
+        boolean cancelled = EventHooks.onNPCAttacksMelee(npc, event);
+        this.cnpc$meleeEventDamage = event.damage;
+        return cancelled;
+    }
+
+    @ModifyArg(method = "doHurtTarget", at = @At(value = "INVOKE",
+            target = "Lnet/minecraft/world/entity/Entity;hurt(Lnet/minecraft/world/damagesource/DamageSource;F)Z"), index = 1)
+    private float cnpc$useMeleeEventDamage(float damage) {
+        // BC 只命中 LivingEntity，一定先触发近战事件。CNPC+ 会再次覆盖局部伤害值。
+        return this.cnpc$callingVanillaAttack ? this.cnpc$meleeEventDamage : damage;
     }
 
     @Override

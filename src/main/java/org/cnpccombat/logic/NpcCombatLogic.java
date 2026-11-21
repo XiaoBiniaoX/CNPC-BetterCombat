@@ -13,6 +13,7 @@ import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Mob;
+import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.AxeItem;
 import net.minecraft.world.item.ItemStack;
@@ -20,7 +21,6 @@ import net.minecraft.world.item.ProjectileWeaponItem;
 import net.minecraft.world.item.UseAnim;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
-import noppes.npcs.entity.EntityNPCInterface;
 import org.cnpccombat.CnpcCombat;
 import org.cnpccombat.api.NpcCombatState;
 import org.cnpccombat.compat.bcp.BcParticleCompat;
@@ -306,7 +306,8 @@ public final class NpcCombatLogic {
             return;
         }
         // 盾耐久：伤害 >= 3 时扣 1+floor(伤害)（对齐 Player.hurtCurrentlyUsedShield 阈值）。
-        float amount = scaleAttackDamage(((EntityNPCInterface) mob).stats.melee.getStrength(), attack);
+        // CNPC+ 把面板的小数伤害同步到攻击属性的基础值。
+        float amount = scaleAttackDamage((float) mob.getAttributeBaseValue(Attributes.ATTACK_DAMAGE), attack);
         if (amount >= 3.0F) {
             InteractionHand hand = player.getUsedItemHand();
             shield.hurtAndBreak(1 + Mth.floor(amount), player, p -> p.broadcastBreakEvent(hand));
