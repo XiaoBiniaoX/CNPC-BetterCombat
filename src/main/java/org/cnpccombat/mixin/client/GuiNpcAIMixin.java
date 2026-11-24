@@ -8,6 +8,7 @@ import noppes.npcs.shared.client.gui.components.GuiLabel;
 import noppes.npcs.shared.client.gui.listeners.IGuiInterface;
 import org.cnpccombat.CnpcCombat;
 import org.cnpccombat.api.NpcAnimGroupData;
+import org.cnpccombat.api.NpcAnimGroupMirror;
 import org.cnpccombat.client.gui.SubGuiAttackAnimGroup;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
@@ -61,6 +62,9 @@ public abstract class GuiNpcAIMixin extends GuiNPCInterface2 {
     @Shadow(remap = false)
     private DataAI ai;
 
+    @Unique
+    private GuiButtonNop cnpc$attackAnimGroupButton;
+
     /**
      * 仅为满足编译期“子类必须调用父类构造”的要求。
      * Mixin 不会把构造器合并进目标类，所以这段代码永远不会真的执行。
@@ -84,15 +88,19 @@ public abstract class GuiNpcAIMixin extends GuiNPCInterface2 {
                     this.guiLeft + 4,
                     this.guiTop + CNPC$ROW_Y + 6
             ));
-            this.addButton(new GuiButtonNop(
+            boolean enabled = this.npc.display instanceof NpcAnimGroupMirror mirror
+                    && mirror.cnpc$areAttackAnimationsEnabled();
+            this.cnpc$attackAnimGroupButton = new GuiButtonNop(
                     (IGuiInterface) this,
                     CNPC$BUTTON_ID,
                     this.guiLeft + 86,
                     this.guiTop + CNPC$ROW_Y,
                     60,
                     20,
-                    "selectServer.edit"
-            ));
+                    "selectServer.edit",
+                    enabled
+            );
+            this.addButton(this.cnpc$attackAnimGroupButton);
         } catch (Throwable t) {
             CnpcCombat.LOGGER.error("Failed to add attack anim group button to AI screen", t);
         }
@@ -104,7 +112,15 @@ public abstract class GuiNpcAIMixin extends GuiNPCInterface2 {
      */
     @Inject(method = "buttonEvent", at = @At("HEAD"), cancellable = true, remap = false)
     private void cnpc$openAnimGroupGui(GuiButtonNop button, CallbackInfo ci) {
-        if (button == null || button.id != CNPC$BUTTON_ID) {
+        if (button == null) {
+            return;
+        }
+        if (button.id != CNPC$BUTTON_ID) {
+            return;
+        }
+        if (this.npc.display instanceof NpcAnimGroupMirror mirror
+                && !mirror.cnpc$areAttackAnimationsEnabled()) {
+            ci.cancel();
             return;
         }
         ci.cancel();

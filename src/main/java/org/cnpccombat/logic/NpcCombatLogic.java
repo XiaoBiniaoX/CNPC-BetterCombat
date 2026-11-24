@@ -12,7 +12,10 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.ProjectileWeaponItem;
 import net.neoforged.neoforge.common.ItemAbilities;
+import noppes.npcs.entity.EntityCustomNpc;
+import noppes.npcs.entity.EntityNPCInterface;
 import org.cnpccombat.api.NpcCombatState;
+import org.cnpccombat.api.NpcAnimGroupMirror;
 import org.cnpccombat.mixin.LivingUseItemAccessor;
 import org.cnpccombat.network.CnpcNetwork;
 import org.jetbrains.annotations.Nullable;
@@ -21,12 +24,17 @@ public final class NpcCombatLogic {
     private static final int COMBO_RESET_TICKS = 40;
     /** Vanilla isBlocking() requires at least this many shield use ticks. */
     private static final int MIN_BLOCKING_RAISE_TICKS = 5;
+    private static final ResourceLocation GECKO_CUSTOM_MODEL =
+            ResourceLocation.fromNamespaceAndPath("cnpcgeckoaddon", "custommodelentity");
 
     private NpcCombatLogic() {
     }
 
     public static boolean isEligible(Mob mob) {
         if (mob.level().isClientSide || !mob.isAlive()) {
+            return false;
+        }
+        if (!areAttackAnimationsEnabled(mob) || usesGeckoModel(mob)) {
             return false;
         }
         if (mob.getMainHandItem().getItem() instanceof ProjectileWeaponItem) {
@@ -36,7 +44,8 @@ public final class NpcCombatLogic {
     }
 
     public static void playFallbackMeleeAnimation(Mob mob) {
-        if (mob.level().isClientSide || !mob.isAlive()) {
+        if (mob.level().isClientSide || !mob.isAlive()
+                || !areAttackAnimationsEnabled(mob) || usesGeckoModel(mob)) {
             return;
         }
         ItemStack stack = mob.getMainHandItem();
@@ -86,6 +95,11 @@ public final class NpcCombatLogic {
             if (state.cnpc$getComboResetTicks() == 0 && state.cnpc$getPendingAttack() == null) {
                 state.cnpc$setComboCount(0);
             }
+        }
+
+        if (!areAttackAnimationsEnabled(mob) || usesGeckoModel(mob)) {
+            cancelPending(state);
+            return;
         }
 
         AttackHand pending = state.cnpc$getPendingAttack();
@@ -197,6 +211,18 @@ public final class NpcCombatLogic {
 
     private static boolean validTarget(Mob mob, LivingEntity target) {
         return target != mob && target.isAlive() && !target.isSpectator() && !mob.isAlliedTo(target);
+    }
+
+    private static boolean areAttackAnimationsEnabled(Mob mob) {
+        return !(mob instanceof EntityNPCInterface npc)
+                || !(npc.display instanceof NpcAnimGroupMirror mirror)
+                || mirror.cnpc$areAttackAnimationsEnabled();
+    }
+
+    private static boolean usesGeckoModel(Mob mob) {
+        return mob instanceof EntityCustomNpc npc
+                && npc.modelData != null
+                && GECKO_CUSTOM_MODEL.equals(npc.modelData.getEntityName());
     }
 
     private static boolean invokeVanillaAttack(Mob mob, LivingEntity target) {

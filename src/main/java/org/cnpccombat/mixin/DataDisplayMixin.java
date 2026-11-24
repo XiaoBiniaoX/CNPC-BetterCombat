@@ -48,6 +48,9 @@ public abstract class DataDisplayMixin implements NpcAnimGroupMirror {
     @Nullable
     private String cnpc$animGroupMirror;
 
+    @Unique
+    private boolean cnpc$attackAnimationsEnabled = true;
+
     @Override
     @Nullable
     public String cnpc$getAnimGroupMirror() {
@@ -63,6 +66,16 @@ public abstract class DataDisplayMixin implements NpcAnimGroupMirror {
         this.cnpc$animGroupMirror = groupId;
     }
 
+    @Override
+    public boolean cnpc$areAttackAnimationsEnabled() {
+        return this.cnpc$attackAnimationsEnabled;
+    }
+
+    @Override
+    public void cnpc$setAttackAnimationsEnabled(boolean enabled) {
+        this.cnpc$attackAnimationsEnabled = enabled;
+    }
+
     @Inject(method = "readToNBT", at = @At("TAIL"), remap = false)
     private void cnpc$readAnimGroupMirror(CompoundTag compound, CallbackInfo ci) {
         if (compound != null && compound.contains(CNPC$ANIM_GROUP_KEY, Tag.TAG_STRING)) {
@@ -72,6 +85,9 @@ public abstract class DataDisplayMixin implements NpcAnimGroupMirror {
             // 否则取消设置后客户端会继续用上一次的持握姿态。
             this.cnpc$animGroupMirror = null;
         }
+        this.cnpc$attackAnimationsEnabled = compound == null
+                || !compound.contains("CnpcCombatAttackAnimationsEnabled", Tag.TAG_BYTE)
+                || compound.getBoolean("CnpcCombatAttackAnimationsEnabled");
     }
 
     @Inject(method = "save", at = @At("TAIL"), remap = false)
@@ -79,6 +95,9 @@ public abstract class DataDisplayMixin implements NpcAnimGroupMirror {
         String group = this.cnpc$animGroupMirror;
         if (compound != null && group != null && !group.isBlank()) {
             compound.putString(CNPC$ANIM_GROUP_KEY, group);
+        }
+        if (compound != null && !this.cnpc$attackAnimationsEnabled) {
+            compound.putBoolean("CnpcCombatAttackAnimationsEnabled", false);
         }
     }
 }

@@ -55,3 +55,10 @@ config="${mod_id}.mixins.json"
     versionRange="[4.0.5,)"
     ordering="AFTER"
     side="BOTH"
+
+[[dependencies.${mod_id}]]
+    modId="cnpcgeckoaddon"
+    type="optional"
+    versionRange="[0,)"
+    ordering="AFTER"
+    side="BOTH"

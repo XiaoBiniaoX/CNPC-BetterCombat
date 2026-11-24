@@ -11,6 +11,7 @@ import dev.kosmx.playerAnim.impl.IMutableModel;
 import dev.kosmx.playerAnim.impl.animation.AnimationApplier;
 import dev.kosmx.playerAnim.impl.animation.IBendHelper;
 import net.minecraft.client.model.geom.ModelPart;
+import net.minecraft.client.model.PlayerModel;
 import net.minecraft.world.entity.LivingEntity;
 import noppes.npcs.entity.EntityNPCInterface;
 import noppes.npcs.roles.JobPuppet;
@@ -22,8 +23,10 @@ public final class NpcAnimator {
 
     @Nullable
     public static AnimationApplier getAnimation(LivingEntity entity) {
-        if (entity instanceof EntityNPCInterface npc && npc.job instanceof JobPuppet) {
-            return null;
+        if (entity instanceof EntityNPCInterface npc) {
+            if (npc.job instanceof JobPuppet) {
+                return null;
+            }
         }
         return entity instanceof IAnimatedPlayer animated ? animated.playerAnimator_getAnimation() : null;
     }
@@ -74,6 +77,26 @@ public final class NpcAnimator {
         }
     }
 
+    public static void applyToPlayerLayers(PlayerModel<?> model, @Nullable AnimationApplier animation) {
+        if (animation != null && animation.isActive()) {
+            animation.updatePart("head", model.hat);
+            animation.updatePart("torso", model.jacket);
+            animation.updatePart("leftArm", model.leftSleeve);
+            animation.updatePart("rightArm", model.rightSleeve);
+            animation.updatePart("leftLeg", model.leftPants);
+            animation.updatePart("rightLeg", model.rightPants);
+        } else {
+            resetBends(model.hat, model.jacket, model.leftSleeve, model.rightSleeve, model.leftPants, model.rightPants);
+        }
+
+        copyScale(model.head, model.hat);
+        copyScale(model.body, model.jacket);
+        copyScale(model.leftArm, model.leftSleeve);
+        copyScale(model.rightArm, model.rightSleeve);
+        copyScale(model.leftLeg, model.leftPants);
+        copyScale(model.rightLeg, model.rightPants);
+    }
+
     public static void applyBodyTransform(@Nullable AnimationApplier animation, PoseStack poseStack, float partialTick) {
         if (animation == null) {
             return;
@@ -97,5 +120,17 @@ public final class NpcAnimator {
         IBendHelper.INSTANCE.bend(model.cnpc$getRightArm(), null);
         IBendHelper.INSTANCE.bend(model.cnpc$getLeftLeg(), null);
         IBendHelper.INSTANCE.bend(model.cnpc$getRightLeg(), null);
+    }
+
+    private static void resetBends(ModelPart... parts) {
+        for (ModelPart part : parts) {
+            IBendHelper.INSTANCE.bend(part, null);
+        }
+    }
+
+    private static void copyScale(ModelPart source, ModelPart target) {
+        target.xScale = source.xScale;
+        target.yScale = source.yScale;
+        target.zScale = source.zScale;
     }
 }

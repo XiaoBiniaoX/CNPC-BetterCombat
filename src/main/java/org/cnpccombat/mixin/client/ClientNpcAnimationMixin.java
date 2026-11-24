@@ -33,6 +33,7 @@ import net.minecraft.world.level.Level;
 import noppes.npcs.entity.EntityNPCInterface;
 import org.cnpccombat.CnpcCombat;
 import org.cnpccombat.api.NpcAnimationAccess;
+import org.cnpccombat.api.NpcAnimGroupMirror;
 import org.cnpccombat.client.NpcTrailParticles;
 import org.cnpccombat.logic.NpcAttackSelector;
 import org.jetbrains.annotations.NotNull;
@@ -220,6 +221,18 @@ public abstract class ClientNpcAnimationMixin extends LivingEntity implements Np
     @Inject(method = "tick", at = @At("TAIL"))
     private void cnpc$refreshPoses(CallbackInfo ci) {
         if (this.level().isClientSide) {
+            if ((Object) this instanceof EntityNPCInterface npc
+                    && npc.display instanceof NpcAnimGroupMirror mirror
+                    && !mirror.cnpc$areAttackAnimationsEnabled()) {
+                this.cnpc$attackAnimation.base.setAnimation(null);
+                while (this.cnpc$attackAnimation.base.size() > 3) {
+                    this.cnpc$attackAnimation.base.removeModifier(this.cnpc$attackAnimation.base.size() - 1);
+                }
+                this.cnpc$attackVisualTicks = 0;
+                this.cnpc$pendingParticleDelay = -1;
+                this.cnpc$pendingParticles = null;
+                this.cnpc$pendingAppearance = null;
+            }
             this.cnpc$updateWeaponPoses();
         }
     }
@@ -285,6 +298,11 @@ public abstract class ClientNpcAnimationMixin extends LivingEntity implements Np
             float damageUpswing
     ) {
         if (!this.level().isClientSide) {
+            return;
+        }
+        if ((Object) this instanceof EntityNPCInterface npc
+                && npc.display instanceof NpcAnimGroupMirror mirror
+                && !mirror.cnpc$areAttackAnimationsEnabled()) {
             return;
         }
         ResourceLocation id = ResourceLocation.tryParse(animationId);

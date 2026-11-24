@@ -37,4 +37,8 @@ public interface NpcAnimGroupMirror {
 
     /** <b>仅服务端调用</b>：把 DataAI 上的权威值刷进镜像。 */
     void cnpc$setAnimGroupMirror(@Nullable String groupId);
+
+    boolean cnpc$areAttackAnimationsEnabled();
+
+    void cnpc$setAttackAnimationsEnabled(boolean enabled);
 }

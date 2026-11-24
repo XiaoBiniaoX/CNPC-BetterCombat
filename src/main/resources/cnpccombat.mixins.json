@@ -16,7 +16,8 @@
     "client.HumanoidModelMixin",
     "client.PlayerModelMixinNpc",
     "client.LivingEntityRendererMixin",
-    "client.GuiNpcAIMixin"
+    "client.GuiNpcAIMixin",
+    "client.GuiCreationEntitiesMixin"
   ],
   "injectors": {
     "defaultRequire": 1

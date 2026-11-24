@@ -4,6 +4,7 @@ import net.minecraft.client.model.PlayerModel;
 import net.minecraft.client.player.AbstractClientPlayer;
 import net.minecraft.world.entity.LivingEntity;
 import noppes.npcs.entity.EntityNPCInterface;
+import dev.kosmx.playerAnim.impl.animation.AnimationApplier;
 import org.cnpccombat.anim.NpcAnimator;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
@@ -25,7 +26,18 @@ public abstract class PlayerModelMixinNpc<T extends LivingEntity> extends Humano
             float netHeadYaw, float headPitch, CallbackInfo ci
     ) {
         if (!(entity instanceof AbstractClientPlayer) && entity instanceof EntityNPCInterface) {
-            NpcAnimator.applyToModel(this, NpcAnimator.getAnimation(entity));
+            AnimationApplier animation = NpcAnimator.getAnimation(entity);
+            NpcAnimator.applyToModel(this, animation);
+        }
+    }
+
+    @Inject(method = "setupAnim(Lnet/minecraft/world/entity/LivingEntity;FFFFF)V", at = @At("TAIL"))
+    private void cnpc$applyToNpcPlayerModelLayers(
+            T entity, float limbSwing, float limbSwingAmount, float ageInTicks,
+            float netHeadYaw, float headPitch, CallbackInfo ci
+    ) {
+        if (!(entity instanceof AbstractClientPlayer) && entity instanceof EntityNPCInterface) {
+            NpcAnimator.applyToPlayerLayers((PlayerModel<?>) (Object) this, NpcAnimator.getAnimation(entity));
         }
     }
 }
