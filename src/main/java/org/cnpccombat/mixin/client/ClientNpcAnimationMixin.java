@@ -33,6 +33,7 @@ import net.minecraft.world.level.Level;
 import noppes.npcs.entity.EntityNPCInterface;
 import org.cnpccombat.CnpcCombat;
 import org.cnpccombat.api.NpcAnimationAccess;
+import org.cnpccombat.api.NpcAnimationSettings;
 import org.cnpccombat.anim.NpcAnimator;
 import org.cnpccombat.logic.NpcAttackSelector;
 import org.jetbrains.annotations.NotNull;
@@ -59,7 +60,13 @@ public abstract class ClientNpcAnimationMixin extends LivingEntity implements Np
     private final Map<ResourceLocation, IAnimation> cnpc$associated = new HashMap<>();
 
     @Unique
-    private final AnimationStack cnpc$stack = new AnimationStack();
+    private final AnimationStack cnpc$stack = new AnimationStack() {
+        @Override
+        public boolean isActive() {
+            // 统一控制模型、持物、整体变换；不影响服务端战斗状态。
+            return NpcAnimationSettings.isEnabled(ClientNpcAnimationMixin.this) && super.isActive();
+        }
+    };
 
     @Unique
     private final AttackAnimationSubStack cnpc$attackAnimation =
@@ -242,13 +249,14 @@ public abstract class ClientNpcAnimationMixin extends LivingEntity implements Np
 
     @Override
     public boolean cnpc$isAttackAnimationActive() {
-        return this.cnpc$attackVisualTicks > 0
+        return NpcAnimationSettings.isEnabled(this) && this.cnpc$attackVisualTicks > 0
                 && this.cnpc$attackAnimation.base.getAnimation() != null;
     }
 
     @Override
     public boolean cnpc$isArmAnimationActive() {
-        return this.cnpc$isAttackAnimationActive() || this.cnpc$weaponBodyPoseActive;
+        return NpcAnimationSettings.isEnabled(this)
+                && (this.cnpc$isAttackAnimationActive() || this.cnpc$weaponBodyPoseActive);
     }
 
     @Override
@@ -335,6 +343,17 @@ public abstract class ClientNpcAnimationMixin extends LivingEntity implements Np
     private void cnpc$updateWeaponPoses() {
         Mob mob = (Mob) (Object) this;
         boolean leftHanded = this.cnpc$isLeftHanded();
+        if (!NpcAnimationSettings.isEnabled(this)) {
+            this.cnpc$attackVisualTicks = 0;
+            this.cnpc$twoHandedAttack = false;
+            this.cnpc$attackAnimation.base.setAnimation(null);
+            // 前三层是 BC 固定的 mirror / speed / adjustment，其后只有攻击过渡。
+            while (this.cnpc$attackAnimation.base.size() > 3) {
+                this.cnpc$attackAnimation.base.removeModifier(this.cnpc$attackAnimation.base.size() - 1);
+            }
+            this.cnpc$clearWeaponPoses(leftHanded);
+            return;
+        }
         if (((EntityNPCInterface) (Object) this).job.getType() == 9) {
             this.cnpc$clearWeaponPoses(leftHanded);
             return;

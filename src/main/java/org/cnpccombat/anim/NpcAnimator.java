@@ -6,11 +6,13 @@ import dev.kosmx.playerAnim.api.TransformType;
 import dev.kosmx.playerAnim.core.impl.AnimationProcessor;
 import dev.kosmx.playerAnim.core.util.SetableSupplier;
 import dev.kosmx.playerAnim.core.util.Vec3f;
+import dev.kosmx.playerAnim.core.util.Pair;
 import dev.kosmx.playerAnim.impl.IAnimatedPlayer;
 import dev.kosmx.playerAnim.impl.IMutableModel;
 import dev.kosmx.playerAnim.impl.animation.AnimationApplier;
 import dev.kosmx.playerAnim.impl.animation.IBendHelper;
 import net.minecraft.client.model.geom.ModelPart;
+import net.minecraft.client.model.PlayerModel;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.api.distmarker.OnlyIn;
@@ -96,6 +98,22 @@ public final class NpcAnimator {
             animation.updatePart("rightArm", model.cnpc$getRightArm());
             animation.updatePart("leftLeg", model.cnpc$getLeftLeg());
             animation.updatePart("rightLeg", model.cnpc$getRightLeg());
+            if (model instanceof PlayerModel<?> player) {
+                player.jacket.copyFrom(player.body);
+                player.leftSleeve.copyFrom(player.leftArm);
+                player.rightSleeve.copyFrom(player.rightArm);
+                player.leftPants.copyFrom(player.leftLeg);
+                player.rightPants.copyFrom(player.rightLeg);
+                // copyFrom 不复制 bend；外层必须与内层使用同一弯曲通道。
+                Pair<Float, Float> torso = animation.getBend("torso");
+                Pair<Float, Float> body = animation.getBend("body");
+                IBendHelper.INSTANCE.bend(player.jacket,
+                        new Pair<>(torso.getLeft() + body.getLeft(), torso.getRight() + body.getRight()));
+                IBendHelper.INSTANCE.bend(player.leftSleeve, animation.getBend("leftArm"));
+                IBendHelper.INSTANCE.bend(player.rightSleeve, animation.getBend("rightArm"));
+                IBendHelper.INSTANCE.bend(player.leftPants, animation.getBend("leftLeg"));
+                IBendHelper.INSTANCE.bend(player.rightPants, animation.getBend("rightLeg"));
+            }
         } else {
             model.cnpc$setFirstPersonNext(false);
             supplier.set(null);
@@ -126,5 +144,12 @@ public final class NpcAnimator {
         IBendHelper.INSTANCE.bend(model.cnpc$getRightArm(), null);
         IBendHelper.INSTANCE.bend(model.cnpc$getLeftLeg(), null);
         IBendHelper.INSTANCE.bend(model.cnpc$getRightLeg(), null);
+        if (model instanceof PlayerModel<?> player) {
+            IBendHelper.INSTANCE.bend(player.jacket, null);
+            IBendHelper.INSTANCE.bend(player.leftSleeve, null);
+            IBendHelper.INSTANCE.bend(player.rightSleeve, null);
+            IBendHelper.INSTANCE.bend(player.leftPants, null);
+            IBendHelper.INSTANCE.bend(player.rightPants, null);
+        }
     }
 }

@@ -1,6 +1,8 @@
 {
   "modmenu.nameTranslation.cnpccombat": "CNPC BetterCombat",
   "cnpccombat.gui.attackAnimGroup": "Attack Animations",
+  "cnpccombat.gui.bcAnimationOn": "BC Anim: On",
+  "cnpccombat.gui.bcAnimationOff": "BC Anim: Off",
   "cnpccombat.gui.groupNone": "Not set (use held weapon)",
   "cnpccombat.gui.clearGroup": "Clear",
   "cnpccombat.gui.ysmModel": "YSM Model",

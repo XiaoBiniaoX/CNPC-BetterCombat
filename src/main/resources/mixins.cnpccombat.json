@@ -11,7 +11,8 @@
     "EntityAIAttackTargetMixin",
     "EntityAIRangedAttackMixin",
     "DataAIMixin",
-    "DataDisplayYsmMixin"
+    "DataDisplayYsmMixin",
+    "DataDisplayAnimationMixin"
   ],
   "client": [
     "client.ClientNpcAnimationMixin",
@@ -21,6 +22,7 @@
     "client.RenderCustomNpcMixin",
     "client.GuiNpcAIMixin",
     "client.GuiCreationEntitiesYsmMixin",
+    "client.GuiCreationScreenMixin",
     "client.RenderNPCInterfaceYsmMixin"
   ],
   "injectors": {

@@ -8,6 +8,7 @@ import noppes.npcs.shared.client.gui.components.GuiLabel;
 import noppes.npcs.shared.client.gui.listeners.IGuiInterface;
 import org.cnpccombat.CnpcCombat;
 import org.cnpccombat.api.NpcAnimGroupData;
+import org.cnpccombat.api.NpcAnimationSettings;
 import org.cnpccombat.client.gui.SubGuiAttackAnimGroup;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
@@ -92,6 +93,7 @@ public abstract class GuiNpcAIMixin extends GuiNPCInterface2 {
                     20,
                     "selectServer.edit"
             ));
+            this.getButton(CNPC$BUTTON_ID).setEnabled(NpcAnimationSettings.isEnabled(this.npc));
         } catch (Throwable t) {
             CnpcCombat.LOGGER.error("向 AI 面板添加攻击动画组按钮失败", t);
         }

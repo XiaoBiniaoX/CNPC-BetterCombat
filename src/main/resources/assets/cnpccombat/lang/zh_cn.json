@@ -1,6 +1,8 @@
 {
   "modmenu.nameTranslation.cnpccombat": "CNPC BetterCombat",
   "cnpccombat.gui.attackAnimGroup": "攻击动画组",
+  "cnpccombat.gui.bcAnimationOn": "BC 动画：开",
+  "cnpccombat.gui.bcAnimationOff": "BC 动画：关",
   "cnpccombat.gui.groupNone": "未设置（使用手中武器）",
   "cnpccombat.gui.clearGroup": "取消设置",
   "cnpccombat.gui.ysmModel": "YSM 模型",

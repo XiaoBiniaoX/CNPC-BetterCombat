@@ -4,7 +4,7 @@ license="MIT"
 
 [[mods]]
 modId="cnpccombat"
-version="1.6.0hotfix"
+version="1.7.0"
 displayName="CNPC BetterCombat"
 displayURL="https://space.bilibili.com/353609880"
 authors="Bin"
@@ -66,6 +66,14 @@ description='''Makes CustomNPCs entities use Better Combat attack and weapon pos
     modId="yes_steve_model"
     mandatory=false
     versionRange="[2,)"
+    ordering="AFTER"
+    side="CLIENT"
+
+# Gecko CE 仅为可选的客户端兼容目标；不引用或打包其类型。
+[[dependencies.cnpccombat]]
+    modId="cnpcgeckoaddon"
+    mandatory=false
+    versionRange="[1,)"
     ordering="AFTER"
     side="CLIENT"
 
